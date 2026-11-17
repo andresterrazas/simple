@@ -1,0 +1,66 @@
+name: Compilar APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Preparar llave de firma
+        env:
+          KS_B64: ${{ secrets.SIMPLE_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/simple.jks"
+            echo "SIMPLE_KEYSTORE_PATH=$RUNNER_TEMP/simple.jks" >> "$GITHUB_ENV"
+            echo "SIGNED=true" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Sin secretos de firma: el APK se firma con una llave temporal y no se publica."
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Compilar
+        env:
+          SIMPLE_KEYSTORE_PASSWORD: ${{ secrets.SIMPLE_KEYSTORE_PASSWORD }}
+          SIMPLE_KEY_ALIAS: ${{ secrets.SIMPLE_KEY_ALIAS }}
+          SIMPLE_KEY_PASSWORD: ${{ secrets.SIMPLE_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk simple.apk
+          ls -la simple.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simple-apk
+          path: simple.apk
+
+      - name: Publicar versión
+        if: env.SIGNED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="v1.0.${{ github.run_number }}"
+          gh release create "$VERSION" simple.apk \
+            --title "simple $VERSION" \
+            --notes "Instala en tu Fire TV con Downloader usando: https://github.com/${{ github.repository }}/releases/latest/download/simple.apk" \
+            --latest
