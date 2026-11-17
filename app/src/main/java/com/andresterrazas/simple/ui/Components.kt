@@ -336,7 +336,6 @@ fun SettingsPage(
         CompositionLocalProvider(LocalBringIntoViewSpec provides pivot) {
             Column(
                 Modifier.weight(0.58f).fillMaxHeight()
-                    .fadingEdges()
                     .verticalScroll(rememberScrollState())
                     .padding(start = 8.dp, end = 52.dp, top = 40.dp, bottom = 48.dp),
                 verticalArrangement = Arrangement.Top,

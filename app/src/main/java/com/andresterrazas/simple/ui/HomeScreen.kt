@@ -434,7 +434,7 @@ fun AppTile(
             visual?.let {
                 Image(
                     it.tile, contentDescription = entry.label, modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop, filterQuality = FilterQuality.High,
+                    contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium,
                 )
             }
             if (focused && look.outline) Box(Modifier.fillMaxSize().border(3.dp, ringColor, shape))

@@ -188,7 +188,7 @@ fun IconPickerScreen(app: SimpleApp, nav: Nav, pkg: String) {
         val glass = rememberTintedGlass(visual?.color)
         TintedBackdrop(app, visual?.color)
         CompositionLocalProvider(LocalBackdrop provides glass) {
-        SettingsPage(title = "Cambiar ícono", subtitle = label, left = {
+        SettingsPage(title = "Cambiar ícono", subtitle = listOf(label, visual?.source.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "), left = {
             Box(Modifier.size(232.dp, 130.dp).clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.15f))) {
                 visual?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High) }
             }

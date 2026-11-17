@@ -38,6 +38,8 @@ data class AppVisual(
     val color: Int,
     val hasBanner: Boolean,
     val light: Boolean = false,
+    /** Origen y resolución de la imagen, p. ej. "Banner 640×360". */
+    val source: String = "",
 )
 
 class AppRepository(private val context: Context) {
@@ -70,12 +72,48 @@ class AppRepository(private val context: Context) {
 
     fun cached(pkg: String, mode: IconMode): AppVisual? = visuals["$pkg:${mode.name}"]
 
-    suspend fun loadVisual(pkg: String, mode: IconMode): AppVisual? = withContext(Dispatchers.IO) {
+    // Solo 2 tarjetas se generan a la vez: evita saturar el CPU del Fire TV al abrir (menos tirones).
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val workers = Dispatchers.IO.limitedParallelism(2)
+    private val tileDir: File get() = File(context.cacheDir, "tiles").apply { mkdirs() }
+
+    private fun versionOf(pkg: String): Long = runCatching {
+        val pi = pm.getPackageInfo(pkg, 0)
+        if (android.os.Build.VERSION.SDK_INT >= 28) pi.longVersionCode else @Suppress("DEPRECATION") pi.versionCode.toLong()
+    }.getOrDefault(0L) xor runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrDefault(0L)
+
+    private fun cacheBase(pkg: String, mode: IconMode): String {
+        val custom = if (mode == IconMode.CUSTOM) customIconFile(pkg).lastModified() else 0L
+        return "${pkg}_${mode.name}_${versionOf(pkg)}_${custom}_v$CACHE_VERSION"
+    }
+
+    /** Tarjetas ya generadas se guardan en disco: al reabrir simple aparecen al instante. */
+    private fun readDisk(base: String): AppVisual? {
+        val png = File(tileDir, "$base.png"); val meta = File(tileDir, "$base.txt")
+        if (!png.exists() || !meta.exists()) return null
+        val parts = meta.readText().split(',')
+        if (parts.size < 4) return null
+        val bmp = BitmapFactory.decodeFile(png.absolutePath) ?: return null
+        bmp.setHasMipMap(true)
+        return AppVisual(bmp.asImageBitmap(), null, parts[0].toInt(), parts[2] == "1", parts[1] == "1", parts[3])
+    }
+
+    private fun writeDisk(base: String, tile: Bitmap, v: AppVisual) {
+        runCatching {
+            File(tileDir, "$base.png").outputStream().use { tile.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            File(tileDir, "$base.txt").writeText("${v.color},${if (v.light) 1 else 0},${if (v.hasBanner) 1 else 0},${v.source}")
+        }
+    }
+
+    suspend fun loadVisual(pkg: String, mode: IconMode): AppVisual? = withContext(workers) {
         val key = "$pkg:${mode.name}"
         visuals[key]?.let { return@withContext it }
-        val v = runCatching { buildVisual(pkg, mode) }.getOrNull() ?: return@withContext null
-        visuals[key] = v
-        v
+        val base = runCatching { cacheBase(pkg, mode) }.getOrNull()
+        base?.let { b -> runCatching { readDisk(b) }.getOrNull() }?.let { visuals[key] = it; return@withContext it }
+        val built = runCatching { buildVisual(pkg, mode) }.getOrNull() ?: return@withContext null
+        visuals[key] = built.first
+        if (base != null) writeDisk(base, built.second, built.first)
+        built.first
     }
 
     private val iconDir: File get() = File(context.filesDir, "icons").apply { mkdirs() }
@@ -140,6 +178,12 @@ class AppRepository(private val context: Context) {
         }
     }
 
+    private fun srcSize(d: Drawable): String {
+        val w = (d as? BitmapDrawable)?.bitmap?.width ?: d.intrinsicWidth
+        val h = (d as? BitmapDrawable)?.bitmap?.height ?: d.intrinsicHeight
+        return if (w > 0 && h > 0) "${w}×${h}" else "vectorial"
+    }
+
     /** Escala el banner respetando su proporción (sin recortes ni deformaciones) para que quepa en la tarjeta. */
     private fun fitBanner(d: Drawable): Bitmap {
         val iw = d.intrinsicWidth
@@ -151,12 +195,20 @@ class AppRepository(private val context: Context) {
         return d.toBitmap(w, h, Bitmap.Config.ARGB_8888)
     }
 
-    private fun buildVisual(pkg: String, mode: IconMode): AppVisual {
+    private fun buildVisual(pkg: String, mode: IconMode): Pair<AppVisual, Bitmap> {
         val iconBmp = loadIcon(pkg)?.let { runCatching { it.toBitmap(ICON, ICON, Bitmap.Config.ARGB_8888) }.getOrNull() }
         val custom = if (mode == IconMode.CUSTOM) customIconFile(pkg).takeIf { it.exists() }
             ?.let { BitmapFactory.decodeFile(it.absolutePath) }?.let { cropTo(it, TILE_W, TILE_H) } else null
         val preferIcon = mode == IconMode.ICON || (mode == IconMode.AUTO && prefersIcon(pkg))
-        val bannerBmp = if (custom == null && !preferIcon) loadBanner(pkg)?.let { runCatching { fitBanner(it) }.getOrNull() } else null
+        val bannerDrawable = if (custom == null && !preferIcon) loadBanner(pkg) else null
+        val bannerBmp = bannerDrawable?.let { runCatching { fitBanner(it) }.getOrNull() }
+        val iconRaw = if (custom == null && bannerBmp == null) loadIcon(pkg) else null
+        val source = when {
+            custom != null -> "Imagen propia"
+            bannerDrawable != null && bannerBmp != null -> "Banner ${srcSize(bannerDrawable)}"
+            iconRaw != null -> "Ícono ${srcSize(iconRaw)}"
+            else -> "Sin imagen"
+        }
         val color = dominantColor(custom ?: bannerBmp ?: iconBmp)
 
         val tile = Bitmap.createBitmap(TILE_W, TILE_H, Bitmap.Config.ARGB_8888)
@@ -196,11 +248,12 @@ class AppRepository(private val context: Context) {
         tile.setHasMipMap(true)
         return AppVisual(
             tile = tile.asImageBitmap(),
-            icon = iconBmp?.asImageBitmap(),
+            icon = null,
             color = color,
             hasBanner = bannerBmp != null,
             light = isLight(tile),
-        )
+            source = source,
+        ) to tile
     }
 
     /** Apps cuyo banner de TV viene recortado o se ve mal; en modo automático usan su ícono. */
@@ -213,6 +266,7 @@ class AppRepository(private val context: Context) {
         const val TILE_W = 400
         const val TILE_H = 225
         const val ICON = 256
+        private const val CACHE_VERSION = 3
         private val ICON_FIRST = setOf("com.amazon.avod", "com.amazon.avod.thirdpartyclient", "com.amazon.firebat")
 
         fun cropTo(src: Bitmap, w: Int, h: Int): Bitmap {

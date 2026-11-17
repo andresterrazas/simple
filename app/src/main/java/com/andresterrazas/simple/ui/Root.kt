@@ -64,7 +64,7 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
             // Transición "fundido a través": la pantalla anterior sale antes de que entre la nueva, sin imágenes encimadas.
             AnimatedContent(
                 targetState = nav.current,
-                transitionSpec = { fadeIn(tween(170, delayMillis = 90)) togetherWith fadeOut(tween(90)) },
+                transitionSpec = { fadeIn(tween(140, delayMillis = 60)) togetherWith fadeOut(tween(60)) },
                 label = "nav",
             ) { screen ->
                 when (screen) {
@@ -78,7 +78,6 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
                     Screen.Controls -> ControlsScreen(app)
                     Screen.Wallpaper -> WallpaperScreen(app, nav)
                     Screen.Dock -> DockScreen(app)
-                    Screen.QuickPanel -> QuickPanelScreen(app, nav)
                     is Screen.IconUpload -> IconUploadScreen(app, nav, screen.pkg)
                     Screen.Blur -> BlurScreen(app)
                     Screen.Upload -> UploadScreen(app, nav)

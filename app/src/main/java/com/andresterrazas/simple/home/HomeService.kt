@@ -8,13 +8,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.provider.Settings
-import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.andresterrazas.simple.MainActivity
 import com.andresterrazas.simple.SimpleApp
-import com.andresterrazas.simple.data.HomeLongAction
 import com.andresterrazas.simple.data.InterceptMode
-import com.andresterrazas.simple.data.SystemActions
 
 object DefaultHome {
     const val AMAZON_LAUNCHER = "com.amazon.tv.launcher"
@@ -23,30 +20,17 @@ object DefaultHome {
     @Volatile var pausedUntil = 0L
     @Volatile var foreground = false
     private val events = ArrayDeque<String>()
-    private val keys = ArrayDeque<String>()
-    @Volatile var homeKeySeen = false
 
     fun component(ctx: Context) = ComponentName(ctx, HomeService::class.java)
 
-    fun log(pkg: String, cls: String) {
+    fun log(line: String) {
         synchronized(events) {
-            events.addFirst("$pkg  ·  $cls")
-            while (events.size > 12) events.removeLast()
+            events.addFirst(line)
+            while (events.size > 16) events.removeLast()
         }
     }
 
     fun recentEvents(): List<String> = synchronized(events) { events.toList() }
-
-    fun logKey(e: android.view.KeyEvent) {
-        if (e.keyCode == android.view.KeyEvent.KEYCODE_HOME) homeKeySeen = true
-        if (e.action != android.view.KeyEvent.ACTION_DOWN || e.repeatCount > 0) return
-        synchronized(keys) {
-            keys.addFirst(android.view.KeyEvent.keyCodeToString(e.keyCode).removePrefix("KEYCODE_"))
-            while (keys.size > 10) keys.removeLast()
-        }
-    }
-
-    fun recentKeys(): List<String> = synchronized(keys) { keys.toList() }
 
     fun isEnabled(ctx: Context): Boolean {
         val raw = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
@@ -83,123 +67,83 @@ object DefaultHome {
         )
     }
 
+    fun pause(minutes: Int) {
+        pausedUntil = SystemClock.uptimeMillis() + minutes * 60_000L
+    }
+
     // ── Sesión de sistema ────────────────────────────────────────────────────────────────
-    // En Fire OS reciente, los Ajustes y la Tienda de Amazon viven dentro del mismo paquete que su
-    // pantalla de inicio. Cuando simple abre una de esas pantallas, no debe "robarla" de regreso.
-    @Volatile private var systemSessionAt = 0L
-    private val sessionClasses = HashSet<String>()
+    // En Fire OS reciente, los Ajustes, la red y la Tienda viven dentro del mismo paquete que el inicio
+    // de Amazon. Al abrir una de esas pantallas desde simple se recuerda su "firma" (clase + título de
+    // ventana). Mientras esa pantalla esté al frente se respeta; cuando aparece la pantalla de inicio de
+    // Amazon (al salir con Atrás), simple vuelve a tomar el control.
+    @Volatile private var sessionAt = 0L
+    private val sessionScreens = HashSet<String>()
     private val learnedHome = HashSet<String>()
-    @Volatile var homePressedAt = 0L
+    private const val SETTLE_MS = 2_500L
 
     fun beginSystemSession() {
-        systemSessionAt = SystemClock.uptimeMillis()
-        synchronized(sessionClasses) { sessionClasses.clear() }
+        sessionAt = SystemClock.uptimeMillis()
+        synchronized(sessionScreens) { sessionScreens.clear() }
     }
 
     fun endSystemSession() {
-        systemSessionAt = 0L
+        sessionAt = 0L
     }
 
-    private fun inSystemSession(): Boolean =
-        systemSessionAt != 0L && SystemClock.uptimeMillis() - systemSessionAt < 20 * 60_000L
+    private fun inSession(): Boolean =
+        sessionAt != 0L && SystemClock.uptimeMillis() - sessionAt < 30 * 60_000L
 
-    /** Una app normal o simple pasó al frente: la sesión de ajustes/tienda terminó. */
+    /** Una app normal o simple pasó al frente: la sesión terminó. */
     fun onForeground(pkg: String, ownPkg: String) {
-        if (!inSystemSession()) return
+        if (!inSession()) return
         val amazonOrSystem = pkg.startsWith("com.amazon.") || pkg == "android" || pkg.startsWith("com.android.")
-        if (pkg == ownPkg || (!amazonOrSystem && SystemClock.uptimeMillis() - systemSessionAt > 2_000)) endSystemSession()
+        if (pkg == ownPkg || (!amazonOrSystem && SystemClock.uptimeMillis() - sessionAt > SETTLE_MS)) endSystemSession()
     }
 
-    fun shouldIntercept(cls: String, mode: InterceptMode): Boolean {
+    fun shouldIntercept(cls: String, title: String, mode: InterceptMode): Boolean {
         val now = SystemClock.uptimeMillis()
         if (now < pausedUntil) return false
         val lower = cls.lowercase()
         if (lower.startsWith("android.widget") || lower.startsWith("android.view") || lower.startsWith("android.app.dialog")) return false
         if ("dialog" in lower || "overlay" in lower || "toast" in lower) return false
-        // Si Fire OS le entrega el botón Inicio al servicio, la decisión es exacta: solo tras presionar Inicio.
-        if (homeKeySeen) return now - homePressedAt < 3_000
-        if (inSystemSession()) {
-            if (now - systemSessionAt < 8_000) synchronized(sessionClasses) { sessionClasses.add(cls) }
-            val isSessionScreen = synchronized(sessionClasses) { cls in sessionClasses }
-            return cls in learnedHome && !isSessionScreen
+        val signature = "$cls|$title"
+        if (inSession()) {
+            // Las pantallas que aparecen justo después de abrir algo de Amazon son "suyas": se respetan.
+            if (now - sessionAt < SETTLE_MS) {
+                synchronized(sessionScreens) { sessionScreens.add(signature) }
+                return false
+            }
+            if (synchronized(sessionScreens) { signature in sessionScreens }) return false
+            val back = signature in learnedHome || "home" in lower
+            if (back) endSystemSession()
+            return back
         }
         val ok = when (mode) {
-            InterceptMode.STRICT -> "home" in lower
+            InterceptMode.STRICT -> "home" in lower || signature in learnedHome
             InterceptMode.BROAD -> true
         }
-        if (ok) learnedHome.add(cls)
+        if (ok) learnedHome.add(signature)
         return ok
-    }
-
-    fun pause(minutes: Int) {
-        pausedUntil = SystemClock.uptimeMillis() + minutes * 60_000L
     }
 }
 
 class HomeService : AccessibilityService() {
     private var lastLaunch = 0L
-    private var homeDownAt = 0L
-    private var homeLongFired = false
 
     override fun onServiceConnected() {
         DefaultHome.running = true
-        instance = this
-    }
-
-    /**
-     * Experimental: si Fire OS entrega el botón Inicio al servicio, simple lo atiende directamente
-     * (sin que aparezca el inicio de Amazon) y distingue la pulsación larga.
-     */
-    override fun onKeyEvent(event: KeyEvent): Boolean {
-        DefaultHome.logKey(event)
-        if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
-        DefaultHome.homePressedAt = SystemClock.uptimeMillis()
-        DefaultHome.endSystemSession()
-        val p = (application as SimpleApp).store.state.value
-        if (!p.directHome) return false
-        when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                if (event.repeatCount == 0) {
-                    homeDownAt = event.eventTime
-                    homeLongFired = false
-                } else if (!homeLongFired && (event.isLongPress || event.eventTime - homeDownAt >= LONG_PRESS_MS)) {
-                    homeLongFired = true
-                    onHomeLong(p.homeLong)
-                }
-            }
-            KeyEvent.ACTION_UP -> if (!homeLongFired) {
-                if (event.eventTime - homeDownAt >= LONG_PRESS_MS) onHomeLong(p.homeLong) else openSimple(quick = false)
-            }
-        }
-        return true
-    }
-
-    private fun onHomeLong(action: HomeLongAction) {
-        when (action) {
-            HomeLongAction.QUICK -> openSimple(quick = true)
-            HomeLongAction.SETTINGS -> SystemActions.openSettings(this)
-            HomeLongAction.NONE -> Unit
-        }
-    }
-
-    private fun openSimple(quick: Boolean) {
-        lastLaunch = SystemClock.uptimeMillis()
-        val intent = Intent(this, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            .putExtra(MainActivity.EXTRA_FROM_HOME, true)
-            .putExtra(MainActivity.EXTRA_QUICK, quick)
-        runCatching { startActivity(intent) }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         val cls = event.className?.toString().orEmpty()
-        DefaultHome.log(pkg, cls)
+        val title = event.text?.firstOrNull()?.toString()?.take(40).orEmpty()
+        DefaultHome.log("$pkg · ${cls.substringAfterLast('.')}${if (title.isNotBlank()) " · \"$title\"" else ""}")
         DefaultHome.onForeground(pkg, packageName)
         if (pkg != DefaultHome.AMAZON_LAUNCHER) return
         val mode = (application as SimpleApp).store.state.value.intercept
-        if (!DefaultHome.shouldIntercept(cls, mode)) return
+        if (!DefaultHome.shouldIntercept(cls, title, mode)) return
         val now = SystemClock.uptimeMillis()
         if (now - lastLaunch < 700) return
         lastLaunch = now
@@ -213,15 +157,6 @@ class HomeService : AccessibilityService() {
 
     override fun onDestroy() {
         DefaultHome.running = false
-        if (instance === this) instance = null
         super.onDestroy()
-    }
-
-    companion object {
-        const val LONG_PRESS_MS = 550L
-        @Volatile var instance: HomeService? = null
-
-        /** Acciones globales del sistema disponibles para el panel rápido. */
-        fun global(action: Int): Boolean = instance?.performGlobalAction(action) ?: false
     }
 }

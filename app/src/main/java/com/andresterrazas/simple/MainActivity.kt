@@ -7,7 +7,6 @@ import androidx.activity.compose.setContent
 import com.andresterrazas.simple.home.DefaultHome
 import com.andresterrazas.simple.ui.FocusMemory
 import com.andresterrazas.simple.ui.Nav
-import com.andresterrazas.simple.ui.Screen
 import com.andresterrazas.simple.ui.SimpleRoot
 import com.andresterrazas.simple.ui.UiState
 
@@ -19,7 +18,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val app = application as SimpleApp
         setContent { SimpleRoot(app, ui, nav) }
-        if (intent?.getBooleanExtra(EXTRA_QUICK, false) == true) nav.push(Screen.QuickPanel)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -28,7 +26,6 @@ class MainActivity : ComponentActivity() {
         nav.reset()
         FocusMemory.map.clear()
         ui.reset()
-        if (intent.getBooleanExtra(EXTRA_QUICK, false)) nav.push(Screen.QuickPanel)
     }
 
     override fun onResume() {
@@ -44,6 +41,5 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_FROM_HOME = "from_home"
-        const val EXTRA_QUICK = "quick_panel"
     }
 }
