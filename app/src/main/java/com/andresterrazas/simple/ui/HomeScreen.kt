@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package com.andresterrazas.simple.ui
 
 import android.content.Context
@@ -51,6 +53,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusProperties
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -102,6 +105,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
         prefs.favorites.mapNotNull { byPkg[it] }
     }
     val others = remember(ordered, prefs.favorites) { ordered.filter { it.pkg !in prefs.favorites } }
+    val rows = remember(others) { others.chunked(COLS) }
 
     val hasFavs = favs.isNotEmpty()
     val expandedVisual = ui.expanded && hasFavs
@@ -109,6 +113,23 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
 
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun fr(pkg: String) = requesters.getOrPut(pkg) { FocusRequester() }
+    val headerRequesters = remember { HashMap<String, FocusRequester>() }
+    fun hfr(id: String) = headerRequesters.getOrPut(id) { FocusRequester() }
+    // Últimos elementos con foco en cada zona, para que subir y bajar siempre regrese al mismo lugar.
+    val memory = remember { arrayOfNulls<String>(2) } // [0] = última app del dock, [1] = último botón del encabezado
+    var pendingFocus by remember { mutableStateOf<String?>(null) }
+
+    val visibleControls = prefs.controls.filter { it == CONTROL_CUSTOM || it !in prefs.hiddenControls }
+
+    fun dockTarget(): FocusRequester? {
+        val p = memory[0]?.takeIf { m -> favs.any { it.pkg == m } } ?: favs.firstOrNull()?.pkg
+            ?: others.firstOrNull()?.pkg
+        return p?.let { fr(it) }
+    }
+    fun headerTarget(): FocusRequester? {
+        val id = memory[1]?.takeIf { it in visibleControls } ?: visibleControls.firstOrNull()
+        return id?.let { hfr(it) }
+    }
 
     // Foco inicial y al regresar a esta pantalla.
     LaunchedEffect(ui.focusTick, hasFavs, others.isNotEmpty()) {
@@ -116,11 +137,19 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
         val target = when {
             last != null && favs.any { it.pkg == last } -> last
             last != null && gridVisible && others.any { it.pkg == last } -> last
-            hasFavs -> favs.first().pkg
+            hasFavs -> memory[0]?.takeIf { m -> favs.any { it.pkg == m } } ?: favs.first().pkg
             else -> others.firstOrNull()?.pkg
         } ?: return@LaunchedEffect
         withFrameNanos { }
         runCatching { fr(target).requestFocus() }
+    }
+    // Al expandir, el foco pasa directo a la cuadrícula.
+    LaunchedEffect(pendingFocus) {
+        val p = pendingFocus ?: return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        runCatching { fr(p).requestFocus() }
+        pendingFocus = null
     }
     // Al mover una app entre filas, mantener el foco sobre ella.
     LaunchedEffect(ui.moving, favs, others) {
@@ -130,7 +159,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     }
 
     val scroll = rememberScrollState()
-    LaunchedEffect(expandedVisual) { if (!expandedVisual) scroll.animateScrollTo(0) }
+    LaunchedEffect(gridVisible) { if (!gridVisible) scroll.animateScrollTo(0) }
 
     val ctx = LocalContext.current
     fun openMenu(pkg: String) {
@@ -151,56 +180,68 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
         return true
     }
 
+    fun expandFrom(col: Int) {
+        if (others.isEmpty()) return
+        ui.expanded = true
+        pendingFocus = rows.first()[col.coerceAtMost(rows.first().lastIndex)].pkg
+    }
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val tileH = TILE_W * 9f / 16f
-        val panelH = PANEL_PAD * 2 + tileH + LABEL_H
+        val dockH = PANEL_PAD + tileH + LABEL_H + 8.dp
+        val headerTop = 26.dp
         val headerH = 64.dp
-        val collapsedGap = (maxHeight - 26.dp - headerH - panelH - 22.dp).coerceAtLeast(16.dp)
-        val gap by animateDpAsState(
-            targetValue = if (!hasFavs || expandedVisual) 18.dp else collapsedGap,
-            animationSpec = tween(460, easing = FastOutSlowInEasing), label = "gap",
-        )
-        val panelAlpha by animateFloatAsState(if (expandedVisual) 1f else 0f, tween(420), label = "panel")
-        val gridAlpha by animateFloatAsState(if (gridVisible) 1f else 0f, tween(380), label = "grid")
         val rowWidth = TILE_W * COLS + TILE_GAP * (COLS - 1) + PANEL_PAD * 2
+        // Posiciones fijas: el dock vive abajo y sube arriba al expandir. Nada se desplaza al mover el foco.
+        val topTarget = when {
+            !hasFavs -> headerTop + headerH + 20.dp
+            expandedVisual -> 30.dp
+            else -> (maxHeight - dockH - 34.dp).coerceAtLeast(headerTop + headerH + 16.dp)
+        }
+        val dockTop by animateDpAsState(topTarget, tween(440, easing = FastOutSlowInEasing), label = "dockTop")
+        val headerAlpha by animateFloatAsState(if (expandedVisual) 0f else 1f, tween(260), label = "header")
+        val gridAlpha by animateFloatAsState(if (gridVisible) 1f else 0f, tween(360), label = "grid")
 
         Column(
-            Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 26.dp),
+            Modifier.fillMaxSize().verticalScroll(scroll, enabled = gridVisible),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            AnimatedVisibility(
-                visible = !expandedVisual,
-                enter = fadeIn(tween(300)) + expandVertically(tween(420)),
-                exit = fadeOut(tween(200)) + shrinkVertically(tween(420)),
-            ) {
-                HeaderBar(prefs, Modifier.width(rowWidth).height(headerH), onCustom = { nav.push(Screen.Settings) })
-            }
-            Spacer(Modifier.height(gap))
+            Spacer(Modifier.height(dockTop))
 
             if (hasFavs) {
                 Box(
                     Modifier.width(rowWidth)
-                        .glass(RoundedCornerShape(32.dp), LocalStyle.current.panel, panelAlpha)
-                        .padding(start = PANEL_PAD, end = PANEL_PAD, top = PANEL_PAD)
+                        .glass(RoundedCornerShape(32.dp), LocalStyle.current.panel)
+                        .padding(start = PANEL_PAD, end = PANEL_PAD, top = PANEL_PAD, bottom = 8.dp)
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
                         modifier = Modifier.onPreviewKeyEvent { ev ->
                             if (ev.type != KeyEventType.KeyDown || ui.moving != null) return@onPreviewKeyEvent false
                             when (ev.nativeKeyEvent.keyCode) {
-                                KeyEvent.KEYCODE_DPAD_DOWN -> if (!ui.expanded && others.isNotEmpty()) { ui.expanded = true; true } else false
+                                KeyEvent.KEYCODE_DPAD_DOWN -> if (!ui.expanded && others.isNotEmpty()) {
+                                    val col = favs.indexOfFirst { it.pkg == memory[0] }.coerceAtLeast(0)
+                                    expandFrom(col)
+                                    true
+                                } else false
                                 KeyEvent.KEYCODE_DPAD_UP -> if (ui.expanded) { ui.collapse(); true } else false
                                 else -> false
                             }
                         },
                     ) {
-                        favs.forEach { e ->
+                        favs.forEachIndexed { i, e ->
                             key(e.pkg) {
                                 AppTile(
                                     app = app, entry = e, prefs = prefs, width = TILE_W,
                                     canFocus = true, moving = ui.moving == e.pkg,
                                     focusRequester = fr(e.pkg),
-                                    onFocused = { ui.lastFocused = e.pkg },
+                                    routes = {
+                                        if (i == 0) left = FocusRequester.Cancel
+                                        if (i == favs.lastIndex) right = FocusRequester.Cancel
+                                        if (!ui.expanded) up = headerTarget() ?: FocusRequester.Cancel
+                                        if (ui.expanded && rows.isNotEmpty()) down = fr(rows.first()[i.coerceAtMost(rows.first().lastIndex)].pkg)
+                                    },
+                                    onFocused = { ui.lastFocused = e.pkg; memory[0] = e.pkg },
                                     onClick = { SystemActions.launchApp(ctx, e.pkg) },
                                     onLongClick = { openMenu(e.pkg) },
                                     onMoveKey = { d -> moveKey(e.pkg, true, d) },
@@ -212,20 +253,31 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                 }
             }
 
-            if (others.isNotEmpty()) {
-                Spacer(Modifier.height(20.dp))
+            AnimatedVisibility(
+                visible = gridVisible && others.isNotEmpty(),
+                enter = fadeIn(tween(320)) + expandVertically(tween(420, easing = FastOutSlowInEasing)),
+                exit = fadeOut(tween(160)) + shrinkVertically(tween(380, easing = FastOutSlowInEasing)),
+            ) {
                 Column(
-                    Modifier.width(rowWidth).padding(horizontal = PANEL_PAD).graphicsLayer { alpha = gridAlpha },
+                    Modifier.width(rowWidth).padding(start = PANEL_PAD, end = PANEL_PAD, top = 22.dp, bottom = 48.dp)
+                        .graphicsLayer { alpha = gridAlpha },
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    others.chunked(COLS).forEach { row ->
+                    rows.forEachIndexed { r, row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
-                            row.forEach { e ->
+                            row.forEachIndexed { c, e ->
                                 key(e.pkg) {
                                     AppTile(
                                         app = app, entry = e, prefs = prefs, width = TILE_W,
                                         canFocus = gridVisible, moving = ui.moving == e.pkg,
                                         focusRequester = fr(e.pkg),
+                                        routes = {
+                                            if (c == 0) left = FocusRequester.Cancel
+                                            if (c == row.lastIndex) right = FocusRequester.Cancel
+                                            if (r == rows.lastIndex) down = FocusRequester.Cancel
+                                            if (r == 0) up = if (hasFavs) fr(favs[c.coerceAtMost(favs.lastIndex)].pkg)
+                                            else headerTarget() ?: FocusRequester.Cancel
+                                        },
                                         onFocused = { ui.lastFocused = e.pkg },
                                         onClick = { SystemActions.launchApp(ctx, e.pkg) },
                                         onLongClick = { openMenu(e.pkg) },
@@ -238,8 +290,23 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                     }
                 }
             }
-            Spacer(Modifier.height(48.dp))
         }
+
+        // El encabezado está fijo arriba; al expandir se desvanece y deja de recibir foco.
+        HeaderBar(
+            prefs = prefs,
+            controls = visibleControls,
+            enabled = !expandedVisual,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = headerTop).width(rowWidth).height(headerH)
+                .graphicsLayer {
+                    alpha = headerAlpha
+                    translationY = -(1f - headerAlpha) * 24.dp.toPx()
+                },
+            requester = { hfr(it) },
+            onFocused = { memory[1] = it },
+            downTarget = { dockTarget() },
+            onCustom = { nav.push(Screen.Settings) },
+        )
 
         if (apps.isEmpty()) {
             BasicText(
@@ -260,6 +327,7 @@ fun AppTile(
     canFocus: Boolean,
     moving: Boolean,
     focusRequester: FocusRequester,
+    routes: FocusProperties.() -> Unit = {},
     onFocused: () -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -284,7 +352,10 @@ fun AppTile(
             .zIndex(if (focused) 1f else 0f)
             .width(width)
             .focusRequester(focusRequester)
-            .focusProperties { this.canFocus = canFocus }
+            .focusProperties {
+                this.canFocus = canFocus
+                routes()
+            }
             .onFocusChanged {
                 focused = it.isFocused
                 if (it.isFocused) onFocused()
@@ -350,13 +421,21 @@ fun AppTile(
 }
 
 @Composable
-private fun HeaderBar(prefs: Prefs, modifier: Modifier, onCustom: () -> Unit) {
+private fun HeaderBar(
+    prefs: Prefs,
+    controls: List<String>,
+    enabled: Boolean,
+    modifier: Modifier,
+    requester: (String) -> FocusRequester,
+    onFocused: (String) -> Unit,
+    downTarget: () -> FocusRequester?,
+    onCustom: () -> Unit,
+) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
     val connected = rememberConnected()
     val now = rememberNow()
     Row(modifier, horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-        val visible = prefs.controls.filter { it == CONTROL_CUSTOM || it !in prefs.hiddenControls }
         Row(
             Modifier.glass(CircleShape, style.panel).padding(start = if (prefs.clockMode == ClockMode.HIDDEN) 6.dp else 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -367,14 +446,24 @@ private fun HeaderBar(prefs: Prefs, modifier: Modifier, onCustom: () -> Unit) {
                 val text = if (prefs.clockMode == ClockMode.TIME_DATE) "$time  •  ${prefs.dateStyle.format(now)}" else time
                 BasicText(text, style = ts(18.sp, FontWeight.Bold), modifier = Modifier.padding(end = 8.dp))
             }
-            visible.forEach { id ->
+            controls.forEachIndexed { i, id ->
                 key(id) {
+                    val m = Modifier
+                        .focusRequester(requester(id))
+                        .focusProperties {
+                            canFocus = enabled
+                            up = FocusRequester.Cancel
+                            if (i == 0) left = FocusRequester.Cancel
+                            if (i == controls.lastIndex) right = FocusRequester.Cancel
+                            down = downTarget() ?: FocusRequester.Cancel
+                        }
+                        .onFocusChanged { if (it.isFocused) onFocused(id) }
                     when (id) {
-                        CONTROL_CUSTOM -> CircleButton(Icons.Sliders, size = 42, onClick = onCustom)
-                        CONTROL_SETTINGS -> CircleButton(Icons.Gear, size = 42) { SystemActions.openSettings(ctx) }
-                        CONTROL_WIFI -> CircleButton(if (connected) Icons.Wifi else Icons.WifiOff, size = 42,
+                        CONTROL_CUSTOM -> CircleButton(Icons.Sliders, m, size = 42, onClick = onCustom)
+                        CONTROL_SETTINGS -> CircleButton(Icons.Gear, m, size = 42) { SystemActions.openSettings(ctx) }
+                        CONTROL_WIFI -> CircleButton(if (connected) Icons.Wifi else Icons.WifiOff, m, size = 42,
                             iconTint = if (connected) null else Color(0xFFFFB4A8)) { SystemActions.openWifi(ctx) }
-                        CONTROL_STORE -> CircleButton(Icons.Store, size = 42) { SystemActions.openStoreHome(ctx) }
+                        CONTROL_STORE -> CircleButton(Icons.Store, m, size = 42) { SystemActions.openStoreHome(ctx) }
                     }
                 }
             }

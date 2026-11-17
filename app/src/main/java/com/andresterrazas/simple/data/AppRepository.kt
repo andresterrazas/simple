@@ -75,18 +75,29 @@ class AppRepository(private val context: Context) {
         return fromActivity ?: runCatching { pm.getApplicationInfo(pkg, 0).loadBanner(pm) }.getOrNull()
     }
 
+    /** Escala el banner respetando su proporción (sin recortes ni deformaciones) para que quepa en la tarjeta. */
+    private fun fitBanner(d: Drawable): Bitmap {
+        val iw = d.intrinsicWidth
+        val ih = d.intrinsicHeight
+        if (iw <= 0 || ih <= 0) return d.toBitmap(TILE_W, TILE_H, Bitmap.Config.ARGB_8888)
+        val scale = minOf(TILE_W / iw.toFloat(), TILE_H / ih.toFloat())
+        val w = (iw * scale).toInt().coerceIn(1, TILE_W)
+        val h = (ih * scale).toInt().coerceIn(1, TILE_H)
+        return d.toBitmap(w, h, Bitmap.Config.ARGB_8888)
+    }
+
     private fun buildVisual(pkg: String, mode: IconMode): AppVisual {
         val banner = if (mode != IconMode.ICON) loadBanner(pkg) else null
         val iconDrawable = runCatching { pm.getApplicationIcon(pkg) }.getOrNull()
         val iconBmp = iconDrawable?.let { runCatching { it.toBitmap(ICON, ICON, Bitmap.Config.ARGB_8888) }.getOrNull() }
-        val bannerBmp = banner?.let { runCatching { it.toBitmap(TILE_W, TILE_H, Bitmap.Config.ARGB_8888) }.getOrNull() }
+        val bannerBmp = banner?.let { runCatching { fitBanner(it) }.getOrNull() }
         val color = dominantColor(bannerBmp ?: iconBmp)
 
         val tile = Bitmap.createBitmap(TILE_W, TILE_H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(tile)
         if (bannerBmp != null) {
             canvas.drawColor(shade(color, 0.35f))
-            canvas.drawBitmap(bannerBmp, 0f, 0f, null)
+            canvas.drawBitmap(bannerBmp, ((TILE_W - bannerBmp.width) / 2).toFloat(), ((TILE_H - bannerBmp.height) / 2).toFloat(), null)
         } else {
             canvas.drawColor(shade(color, 0.55f))
             if (iconBmp != null) {

@@ -1,6 +1,16 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.andresterrazas.simple.ui
 
 import android.view.KeyEvent
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -301,15 +311,44 @@ fun SettingsPage(
                 }
             }
         }
-        Column(
-            Modifier.weight(0.58f).fillMaxHeight().verticalScroll(rememberScrollState())
-                .padding(start = 8.dp, end = 52.dp, top = 40.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.Top,
-        ) {
-            content()
+        CompositionLocalProvider(LocalBringIntoViewSpec provides PivotScroll) {
+            Column(
+                Modifier.weight(0.58f).fillMaxHeight()
+                    .fadingEdges()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 8.dp, end = 52.dp, top = 40.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.Top,
+            ) {
+                content()
+            }
         }
     }
 }
+
+/** Mantiene el elemento enfocado cerca del centro de la lista, como en la interfaz de un TV, en vez de pegado al borde. */
+@OptIn(ExperimentalFoundationApi::class)
+private val PivotScroll = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val target = containerSize * 0.38f - size / 2f
+        return offset - target
+    }
+}
+
+/** Desvanece suavemente el contenido en los bordes superior e inferior al desplazarse. */
+fun Modifier.fadingEdges(): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            brush = Brush.verticalGradient(
+                0f to Color.Transparent,
+                0.08f to Color.Black,
+                0.92f to Color.Black,
+                1f to Color.Transparent,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 @Composable
 fun BigIcon(icon: ImageVector) = Icon(icon, Color.White, 76.dp)
