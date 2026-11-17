@@ -17,6 +17,7 @@ sealed interface Screen {
     data object Controls : Screen
     data object Wallpaper : Screen
     data object Dock : Screen
+    data object RecsSettings : Screen
     data class IconUpload(val pkg: String) : Screen
     data object Blur : Screen
     data object Upload : Screen

@@ -106,6 +106,8 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
         SettingRow("Orden de aplicaciones", Modifier.restorableFocus(s, "order"), icon = Icons.Sort, value = p.orderMode.label) { nav.push(Screen.Order) }
         SettingRow("Reloj", Modifier.restorableFocus(s, "clock"), icon = Icons.Clock, value = p.clockMode.label) { nav.push(Screen.Clock) }
         SettingRow("Dock", Modifier.restorableFocus(s, "dock"), icon = Icons.Dock, subtitle = "Opacidad, tamaño, forma y nombres") { nav.push(Screen.Dock) }
+        SettingRow("Continuar viendo", Modifier.restorableFocus(s, "recs"), icon = Icons.Tv,
+            value = if (p.showRecs) "Activado" else "Desactivado") { nav.push(Screen.RecsSettings) }
         SettingRow("Controles del encabezado", Modifier.restorableFocus(s, "controls"), icon = Icons.Sliders) { nav.push(Screen.Controls) }
         SettingRow("Tamaño de los menús", Modifier.restorableFocus(s, "scale"), icon = Icons.Display, value = p.menuScale.label) {
             val all = com.andresterrazas.simple.data.MenuScale.entries
@@ -579,9 +581,13 @@ fun DockScreen(app: SimpleApp) {
                 app.store.update { it.copy(dockOpacity = o) }
             }
         }
-        SectionLabel("Tamaño de las apps")
+        ToggleRow(
+            "Mostrar la siguiente fila", p.peekRow, Modifier.restorableFocus(s, "peek"),
+            subtitle = "Asoma bajo el dock, como pista de que hay más apps",
+        ) { app.store.update { it.copy(peekRow = !it.peekRow) } }
+        SectionLabel("Ancho del dock")
         com.andresterrazas.simple.data.DockSize.entries.forEach { z ->
-            RadioRow(z.label, p.dockSize == z, Modifier.restorableFocus(s, "size_${z.name}")) {
+            RadioRow(z.label, p.dockSize == z, Modifier.restorableFocus(s, "size_${z.name}"), subtitle = "${(z.widthFraction * 100).toInt()} % del ancho de la pantalla") {
                 app.store.update { it.copy(dockSize = z) }
             }
         }
@@ -607,5 +613,45 @@ fun DockScreen(app: SimpleApp) {
             "Contorno al enfocar", p.focusOutline, Modifier.restorableFocus(s, "outline"),
             subtitle = "Blanco, o gris en apps claras para que siempre se distinga",
         ) { app.store.update { it.copy(focusOutline = !it.focusOutline) } }
+    }
+}
+
+@Composable
+fun RecsScreen(app: SimpleApp) {
+    val ctx = LocalContext.current
+    val p by app.store.state.collectAsState()
+    val recs by com.andresterrazas.simple.home.Recs.items.collectAsState()
+    val enabled by produceState(com.andresterrazas.simple.home.Recs.isEnabled(ctx)) {
+        while (true) { value = com.andresterrazas.simple.home.Recs.isEnabled(ctx); delay(1000) }
+    }
+    val seen by produceState(com.andresterrazas.simple.home.Recs.seenSummary()) {
+        while (true) { value = com.andresterrazas.simple.home.Recs.seenSummary(); delay(1500) }
+    }
+    val s = "recs"
+    SettingsPage(title = "Continuar viendo", subtitle = "Sugerencias de tus apps", left = { BigIcon(Icons.Tv) }) {
+        ToggleRow("Mostrar en el inicio", p.showRecs, Modifier.restorableFocus(s, "show", default = true),
+            subtitle = "Fila sobre el dock con lo que tus apps sugieren o dejaste a medias") {
+            app.store.update { it.copy(showRecs = !it.showRecs) }
+        }
+        SectionLabel("Estado")
+        InfoBlock(
+            "Acceso a sugerencias: ${if (enabled) "activo" else "no activo"}\n" +
+                "Tarjetas disponibles ahora: ${recs.size}" +
+                if (enabled && recs.isEmpty()) "\nAbre y usa algunas apps (YouTube, Prime Video, Plex…); las que publiquen sugerencias aparecerán aquí." else ""
+        )
+        if (!enabled) {
+            if (DefaultHome.canWriteSecure(ctx)) {
+                SettingRow("Activar ahora", Modifier.restorableFocus(s, "enable"), icon = Icons.Check) {
+                    val ok = com.andresterrazas.simple.home.Recs.enableViaSecure(ctx)
+                    Toast.makeText(ctx, if (ok) "Listo" else "No se pudo activar", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                InfoBlock("Se activa una sola vez por ADB, igual que el botón Inicio:")
+                InfoBlock(com.andresterrazas.simple.home.Recs.adbCommand(ctx), mono = true)
+            }
+        }
+        SectionLabel("Qué apps envían información")
+        InfoBlock(if (seen.isEmpty()) "Nada todavía." else seen.joinToString("\n"), mono = true)
+        InfoBlock("simple solo lee las sugerencias que las apps publican para el inicio de TV; no lee mensajes ni datos personales, y nada sale de tu Fire TV.")
     }
 }

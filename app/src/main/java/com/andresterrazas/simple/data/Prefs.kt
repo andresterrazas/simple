@@ -60,10 +60,11 @@ enum class DockOpacity(val label: String, val alpha: Float) {
     MAX("Máxima", 0.45f),
 }
 
-enum class DockSize(val label: String, val tile: Int, val gap: Int) {
-    SMALL("Pequeño", 108, 18),
-    MEDIUM("Mediano", 124, 18),
-    LARGE("Grande", 138, 14),
+/** Tamaño del dock como fracción del ancho seguro de la pantalla (tile/gap son valores de referencia para la vista previa). */
+enum class DockSize(val label: String, val tile: Int, val gap: Int, val widthFraction: Float) {
+    SMALL("Pequeño", 108, 18, 0.80f),
+    MEDIUM("Mediano", 124, 18, 0.90f),
+    LARGE("Grande", 138, 14, 1.00f),
 }
 
 enum class DockShape(val label: String, val tileRadius: Int, val panelRadius: Int) {
@@ -121,6 +122,8 @@ data class Prefs(
     val focusZoom: FocusZoom = FocusZoom.NORMAL,
     val focusOutline: Boolean = true,
     val menuScale: MenuScale = MenuScale.NORMAL,
+    val peekRow: Boolean = true,
+    val showRecs: Boolean = true,
 ) {
     fun iconMode(pkg: String): IconMode = iconModes[pkg] ?: IconMode.AUTO
 
@@ -229,6 +232,8 @@ class PrefsStore(context: Context) {
             focusZoom = enumOr(sp.getString("focusZoom", null), d.focusZoom),
             focusOutline = sp.getBoolean("focusOutline", d.focusOutline),
             menuScale = enumOr(sp.getString("menuScale", null), d.menuScale),
+            peekRow = sp.getBoolean("peekRow", d.peekRow),
+            showRecs = sp.getBoolean("showRecs", d.showRecs),
         )
     }
 
@@ -256,6 +261,8 @@ class PrefsStore(context: Context) {
             .putString("focusZoom", p.focusZoom.name)
             .putBoolean("focusOutline", p.focusOutline)
             .putString("menuScale", p.menuScale.name)
+            .putBoolean("peekRow", p.peekRow)
+            .putBoolean("showRecs", p.showRecs)
             .apply()
     }
 }

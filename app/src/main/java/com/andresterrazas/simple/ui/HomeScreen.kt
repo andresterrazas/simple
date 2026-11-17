@@ -21,6 +21,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -90,6 +91,7 @@ import com.andresterrazas.simple.data.LabelMode
 import com.andresterrazas.simple.data.Prefs
 import com.andresterrazas.simple.data.SystemActions
 import com.andresterrazas.simple.data.orderApps
+import com.andresterrazas.simple.home.Recs
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -111,9 +113,9 @@ data class TileLook(
     val labelH: Dp get() = if (labels == LabelMode.NEVER) 8.dp else 30.dp
 }
 
-fun Prefs.tileLook() = TileLook(
-    width = dockSize.tile.dp,
-    gap = dockSize.gap.dp,
+fun Prefs.tileLook(width: Dp = dockSize.tile.dp, gap: Dp = dockSize.gap.dp) = TileLook(
+    width = width,
+    gap = gap,
     radius = dockShape.tileRadius.dp,
     zoom = focusZoom.scale,
     outline = focusOutline,
@@ -152,6 +154,17 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     var pendingFocus by remember { mutableStateOf<String?>(null) }
 
     val visibleControls = prefs.controls.filter { it == CONTROL_CUSTOM || it !in prefs.hiddenControls }
+
+    val showRecs = prefs.showRecs
+    val recs by Recs.items.collectAsState()
+    val recRequesters = remember { HashMap<String, FocusRequester>() }
+    fun rfr(key: String) = recRequesters.getOrPut(key) { FocusRequester() }
+    val memory2 = remember { arrayOfNulls<String>(1) } // última tarjeta de "Continuar viendo"
+    val recsShown = showRecs && recs.isNotEmpty() && hasFavs && !expandedVisual
+    fun recsTarget(): FocusRequester? {
+        val k = memory2[0]?.takeIf { m -> recs.any { it.key == m } } ?: recs.firstOrNull()?.key
+        return k?.let { rfr(it) }
+    }
 
     fun dockTarget(): FocusRequester? {
         val p = memory[0]?.takeIf { m -> favs.any { it.pkg == m } } ?: favs.firstOrNull()?.pkg
@@ -219,20 +232,35 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val look = prefs.tileLook()
+        // ── Diseño adaptable ───────────────────────────────────────────────────────────────
+        // Margen seguro de TV (5 % por lado): evita que el sobrebarrido del televisor recorte el dock.
+        val safeH = maxWidth * 0.05f
+        val safeV = maxHeight * 0.05f
+        val safeW = maxWidth - safeH * 2
+        // El dock ocupa una fracción del ancho seguro y las apps se calculan para llenarlo (como en Apple TV).
+        val rowWidth = safeW * prefs.dockSize.widthFraction
+        val gap = rowWidth * 0.022f
+        val tileW = (rowWidth - PANEL_PAD * 2 - gap * (COLS - 1)) / COLS
+        val look = prefs.tileLook(tileW, gap)
         val dockH = PANEL_PAD + look.height + look.labelH + 8.dp
-        val headerTop = 26.dp
-        val headerH = 64.dp
-        val rowWidth = look.width * COLS + look.gap * (COLS - 1) + PANEL_PAD * 2
-        // Posiciones fijas: el dock vive abajo y sube arriba al expandir. Nada se desplaza al mover el foco.
+        val headerTop = safeV
+        val headerH = 56.dp
+        val gridGap = 22.dp
+        val showPeek = prefs.peekRow && others.isNotEmpty() && hasFavs
+        // Asoma la parte superior de la siguiente fila bajo el dock, como pista de que hay más apps.
+        val peek = look.height * 0.34f
+        val collapsedTop = if (showPeek) maxHeight - peek - gridGap - dockH else maxHeight - safeV - dockH
         val topTarget = when {
-            !hasFavs -> headerTop + headerH + 20.dp
-            expandedVisual -> 30.dp
-            else -> (maxHeight - dockH - 34.dp).coerceAtLeast(headerTop + headerH + 16.dp)
+            !hasFavs -> headerTop + headerH + 24.dp
+            expandedVisual -> safeV
+            else -> collapsedTop.coerceAtLeast(headerTop + headerH + 16.dp)
         }
         val dockTop by animateDpAsState(topTarget, tween(440, easing = FastOutSlowInEasing), label = "dockTop")
         val headerAlpha by animateFloatAsState(if (expandedVisual) 0f else 1f, tween(260), label = "header")
-        val gridAlpha by animateFloatAsState(if (gridVisible) 1f else 0f, tween(360), label = "grid")
+        val gridAlpha by animateFloatAsState(if (gridVisible) 1f else if (showPeek) 0.5f else 0f, tween(360), label = "grid")
+
+        val recsVisible = recsShown
+        val recsAlpha by animateFloatAsState(if (recsVisible) 1f else 0f, tween(260), label = "recs")
 
         Column(
             Modifier.fillMaxSize().verticalScroll(scroll, enabled = gridVisible),
@@ -270,7 +298,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                                     routes = {
                                         if (i == 0) left = FocusRequester.Cancel
                                         if (i == favs.lastIndex) right = FocusRequester.Cancel
-                                        if (!ui.expanded) up = headerTarget() ?: FocusRequester.Cancel
+                                        if (!ui.expanded) up = (if (recsShown) recsTarget() else null) ?: headerTarget() ?: FocusRequester.Cancel
                                         if (ui.expanded && rows.isNotEmpty()) down = fr(rows.first()[i.coerceAtMost(rows.first().lastIndex)].pkg)
                                     },
                                     onFocused = { ui.lastFocused = e.pkg; memory[0] = e.pkg },
@@ -285,13 +313,9 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                 }
             }
 
-            AnimatedVisibility(
-                visible = gridVisible && others.isNotEmpty(),
-                enter = fadeIn(tween(320)) + expandVertically(tween(420, easing = FastOutSlowInEasing)),
-                exit = fadeOut(tween(160)) + shrinkVertically(tween(380, easing = FastOutSlowInEasing)),
-            ) {
+            if (others.isNotEmpty()) {
                 Column(
-                    Modifier.width(rowWidth).padding(start = PANEL_PAD, end = PANEL_PAD, top = 22.dp, bottom = 48.dp)
+                    Modifier.width(rowWidth).padding(start = PANEL_PAD, end = PANEL_PAD, top = gridGap, bottom = 48.dp)
                         .graphicsLayer { alpha = gridAlpha },
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
@@ -324,19 +348,40 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
             }
         }
 
+        // Continuar viendo / sugerencias: encima del dock, alineado a su borde izquierdo.
+        if (recs.isNotEmpty() && hasFavs) {
+            val cardW = look.width * 1.18f
+            val cardH = cardW * 9f / 16f
+            val rowH = 30.dp + cardH + 30.dp
+            RecsRow(
+                recs = recs,
+                cardW = cardW,
+                enabled = recsVisible,
+                modifier = Modifier
+                    .padding(top = (dockTop - rowH - 6.dp).coerceAtLeast(headerTop + headerH))
+                    .padding(start = (maxWidth - rowWidth) / 2 + PANEL_PAD)
+                    .width(rowWidth - PANEL_PAD)
+                    .graphicsLayer { alpha = recsAlpha },
+                requester = { rfr(it) },
+                onFocused = { memory2[0] = it },
+                upTarget = { headerTarget() },
+                downTarget = { dockTarget() },
+            )
+        }
+
         // El encabezado está fijo arriba; al expandir se desvanece y deja de recibir foco.
         HeaderBar(
             prefs = prefs,
             controls = visibleControls,
             enabled = !expandedVisual,
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = headerTop).width(rowWidth).height(headerH)
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = headerTop).width(safeW).height(headerH)
                 .graphicsLayer {
                     alpha = headerAlpha
                     translationY = -(1f - headerAlpha) * 24.dp.toPx()
                 },
             requester = { hfr(it) },
             onFocused = { memory[1] = it },
-            downTarget = { dockTarget() },
+            downTarget = { (if (recsShown) recsTarget() else null) ?: dockTarget() },
             onCustom = { nav.push(Screen.Settings) },
         )
 
@@ -547,4 +592,87 @@ private fun isConnected(ctx: Context): Boolean {
     val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
     val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
     return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}
+
+@Composable
+private fun RecsRow(
+    recs: List<com.andresterrazas.simple.home.Rec>,
+    cardW: Dp,
+    enabled: Boolean,
+    modifier: Modifier,
+    requester: (String) -> FocusRequester,
+    onFocused: (String) -> Unit,
+    upTarget: () -> FocusRequester?,
+    downTarget: () -> FocusRequester?,
+) {
+    val ctx = LocalContext.current
+    val apps = (ctx.applicationContext as SimpleApp).repo.apps.collectAsState().value
+    val scroll = rememberScrollState()
+    Column(modifier) {
+        BasicText("Continuar viendo", style = ts(17.sp, FontWeight.Bold), modifier = Modifier.padding(bottom = 10.dp))
+        Row(
+            Modifier.horizontalScroll(scroll).padding(end = 40.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            recs.forEachIndexed { i, r ->
+                key(r.key) {
+                    RecCard(
+                        rec = r,
+                        appLabel = apps.firstOrNull { it.pkg == r.pkg }?.label.orEmpty(),
+                        width = cardW,
+                        modifier = Modifier
+                            .focusRequester(requester(r.key))
+                            .focusProperties {
+                                canFocus = enabled
+                                if (i == 0) left = FocusRequester.Cancel
+                                if (i == recs.lastIndex) right = FocusRequester.Cancel
+                                up = upTarget() ?: FocusRequester.Cancel
+                                down = downTarget() ?: FocusRequester.Cancel
+                            }
+                            .onFocusChanged { if (it.isFocused) onFocused(r.key) },
+                    ) {
+                        val sent = runCatching { r.intent?.send(); r.intent != null }.getOrDefault(false)
+                        if (!sent) SystemActions.launchApp(ctx, r.pkg)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecCard(rec: com.andresterrazas.simple.home.Rec, appLabel: String, width: Dp, modifier: Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (focused) 1.08f else 1f, spring(dampingRatio = 0.75f, stiffness = 520f), label = "recScale")
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier.zIndex(if (focused) 1f else 0f).width(width)
+            .onFocusChanged { focused = it.isFocused }
+            .dpadActions(onClick)
+            .focusable(),
+    ) {
+        Box(
+            Modifier.size(width, width * 9f / 16f)
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(shape)
+                .background(Color.Black.copy(alpha = 0.35f)),
+        ) {
+            rec.image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium) }
+            if (rec.image == null) {
+                BasicText(rec.title, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    style = ts(15.sp, FontWeight.Bold), modifier = Modifier.align(Alignment.Center).padding(12.dp))
+            }
+            rec.progress?.let { p ->
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.3f)))
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(p).height(4.dp).background(Color(0xFFE50914)))
+            }
+            if (focused) Box(Modifier.fillMaxSize().border(3.dp, Color.White, shape))
+        }
+        BasicText(
+            if (focused) rec.title else appLabel.ifBlank { rec.title },
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = ts(13.sp, FontWeight.SemiBold, Color.White.copy(alpha = if (focused) 1f else 0.7f)),
+            modifier = Modifier.padding(top = 10.dp),
+        )
+    }
 }

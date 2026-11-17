@@ -45,6 +45,7 @@ class SimpleApp : Application() {
         }
         registerPackageReceiver()
         DefaultHome.enableViaSecure(this)
+        com.andresterrazas.simple.home.Recs.enableViaSecure(this)
     }
 
     fun refreshApps(delayMs: Long = 0) {
