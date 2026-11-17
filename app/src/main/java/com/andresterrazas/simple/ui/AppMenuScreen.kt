@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -111,6 +113,8 @@ fun AppMenuScreen(app: SimpleApp, ui: UiState, nav: Nav, pkg: String) {
 
     Box(Modifier.fillMaxSize()) {
         TintedBackdrop(visual?.color)
+        // Sobre el fondo teñido, los paneles usan solo un velo blanco (sin el recorte azul del fondo).
+        CompositionLocalProvider(LocalBackdrop provides null) {
         Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(0.42f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 AppHero(app, pkg, mode, entry?.label ?: pkg)
@@ -145,6 +149,7 @@ fun AppMenuScreen(app: SimpleApp, ui: UiState, nav: Nav, pkg: String) {
                 SettingRow("Desinstalar", Modifier.restorableFocus(scope, "uninstall"), icon = Icons.Trash, danger = true) { SystemActions.uninstall(ctx, pkg) }
             }
         }
+        }
     }
 }
 
@@ -158,17 +163,20 @@ fun IconPickerScreen(app: SimpleApp, nav: Nav, pkg: String) {
     val banner = rememberVisual(app, pkg, IconMode.BANNER)
     Box(Modifier.fillMaxSize()) {
         TintedBackdrop(visual?.color)
+        CompositionLocalProvider(LocalBackdrop provides null) {
         SettingsPage(title = "Cambiar ícono", subtitle = label, left = {
             Box(Modifier.size(232.dp, 130.dp).clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.15f))) {
-                visual?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                visual?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High) }
             }
         }) {
             SectionLabel("Estilo del ícono")
-            IconMode.entries.forEach { m ->
+            val hasCustom = remember(prefs.iconModes) { app.repo.customIconFile(pkg).exists() }
+            IconMode.entries.filter { it != IconMode.CUSTOM || hasCustom }.forEach { m ->
                 val sub = when (m) {
                     IconMode.AUTO -> "Banner de TV si existe; si no, ícono sobre su color"
                     IconMode.BANNER -> if (banner?.hasBanner == true) "Imagen horizontal de la app" else "Esta app no tiene banner de TV"
-                    IconMode.ICON -> "Ícono de la app sobre su color"
+                    IconMode.ICON -> "Ícono de la app en alta resolución"
+                    IconMode.CUSTOM -> "La imagen que subiste desde tu celular"
                 }
                 RadioRow(m.label, selected = mode == m, subtitle = sub,
                     modifier = Modifier.restorableFocus("icon:$pkg", m.name, default = m == mode)) {
@@ -177,6 +185,10 @@ fun IconPickerScreen(app: SimpleApp, nav: Nav, pkg: String) {
                     }
                 }
             }
+            SectionLabel("Personalizar")
+            SettingRow("Subir imagen desde el celular", Modifier.restorableFocus("icon:$pkg", "upload"), icon = Icons.Phone,
+                subtitle = "Usa cualquier logo o póster como tarjeta") { nav.push(Screen.IconUpload(pkg)) }
+        }
         }
     }
 }

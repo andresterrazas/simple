@@ -167,6 +167,21 @@ fun SetupScreen(app: SimpleApp, nav: Nav) {
             else Toast.makeText(ctx, "Todavía no está activo", Toast.LENGTH_SHORT).show()
         }
 
+        SectionLabel("Botón Inicio directo · experimental")
+        InfoBlock(
+            if (DefaultHome.homeKeySeen) "Tu Fire TV sí le entrega el botón Inicio a simple: el modo directo funcionará."
+            else "Presiona Inicio una vez con el servicio activo y regresa aquí: te diré si tu Fire TV permite el modo directo."
+        )
+        ToggleRow(
+            "Abrir simple al instante", p.directHome, Modifier.restorableFocus(s, "direct"),
+            subtitle = "Sin pasar por el inicio de Amazon. Mantener presionado Inicio abre la acción de abajo.",
+        ) { app.store.update { it.copy(directHome = !it.directHome) } }
+        com.andresterrazas.simple.data.HomeLongAction.entries.forEach { a ->
+            RadioRow("Mantener Inicio: ${a.label}", p.homeLong == a, Modifier.restorableFocus(s, "long_${a.name}"), subtitle = a.description) {
+                app.store.update { it.copy(homeLong = a) }
+            }
+        }
+
         SectionLabel("Detección del botón Inicio")
         InterceptMode.entries.forEach { m ->
             RadioRow(m.label, p.intercept == m, Modifier.restorableFocus(s, "mode_${m.name}"), subtitle = m.description) {
@@ -500,6 +515,13 @@ fun DiagnosticsScreen(app: SimpleApp) {
         }
         SectionLabel("Últimas ventanas detectadas")
         InfoBlock(if (events.isEmpty()) "Sin eventos todavía (el servicio debe estar activo)." else events.joinToString("\n"), mono = true)
+        SectionLabel("Últimas teclas recibidas por el servicio")
+        val keys by produceState(DefaultHome.recentKeys()) { while (true) { value = DefaultHome.recentKeys(); delay(1000) } }
+        InfoBlock(
+            (if (keys.isEmpty()) "Ninguna todavía." else keys.joinToString(" · ")) +
+                "\nBotón Inicio detectado: ${if (DefaultHome.homeKeySeen) "sí" else "no"}",
+            mono = true,
+        )
         SectionLabel("Ajustes del sistema disponibles")
         InfoBlock(SystemActions.shortcuts.joinToString("\n") { sc ->
             "${if (SystemActions.resolvable(ctx, sc)) "✓" else "–"}  ${sc.title}"
@@ -521,8 +543,9 @@ private fun DockPreview(app: SimpleApp) {
         val byPkg = apps.associateBy { it.pkg }
         (p.favorites.mapNotNull { byPkg[it] } + apps).distinctBy { it.pkg }.take(3)
     }
-    // Vista previa a escala: tres apps con la apariencia elegida, la primera "enfocada".
-    val scale = 0.82f
+    // Vista previa a escala: tres apps con la apariencia elegida, la primera "enfocada". Siempre cabe completa.
+    val rowW = look.width.value * 3 + look.gap.value * 2 + 32f
+    val scale = (300f / rowW).coerceAtMost(0.9f)
     Box(
         Modifier.size(330.dp, 150.dp).clip(RoundedCornerShape(26.dp)).background(Color.Black.copy(alpha = 0.12f)),
         contentAlignment = Alignment.Center,
@@ -598,9 +621,9 @@ fun DockScreen(app: SimpleApp) {
                 app.store.update { it.copy(focusZoom = z) }
             }
         }
-        SettingRow(
-            "Contorno blanco", Modifier.restorableFocus(s, "outline"), icon = Icons.Check,
-            value = if (p.focusOutline) "Activado" else "Desactivado",
+        ToggleRow(
+            "Contorno al enfocar", p.focusOutline, Modifier.restorableFocus(s, "outline"),
+            subtitle = "Se vuelve grisáceo en apps claras para que siempre se distinga",
         ) { app.store.update { it.copy(focusOutline = !it.focusOutline) } }
     }
 }

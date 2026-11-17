@@ -144,7 +144,7 @@ class WallpaperEngine(private val context: Context) {
     val images: StateFlow<WallpaperImages?> = _images
     private val thumbs = ConcurrentHashMap<String, ImageBitmap>()
     private val dir: File get() = File(context.filesDir, "wallpapers").apply { mkdirs() }
-    private var lastKey: String? = null
+    @Volatile private var lastKey: String? = null
 
     suspend fun render(id: String, blur: Int) = withContext(Dispatchers.Default) {
         val key = "$id#$blur"
@@ -159,6 +159,32 @@ class WallpaperEngine(private val context: Context) {
         val backdrop = Blur.blur(scaleCrop(src, 240, 135), min(60, max(14, blur / 8 + 12)))
         _images.value = WallpaperImages(background.asImageBitmap(), backdrop.asImageBitmap())
         lastKey = key
+        saveCache(key, background, backdrop)
+    }
+
+    // Caché en disco del fondo ya procesado: al abrir simple se muestra al instante, sin pantalla negra.
+    private val cacheBg get() = File(context.cacheDir, "wp_bg.png")
+    private val cacheBd get() = File(context.cacheDir, "wp_bd.png")
+    private val cacheKey get() = File(context.cacheDir, "wp_key.txt")
+
+    private fun saveCache(key: String, bg: Bitmap, bd: Bitmap) {
+        runCatching {
+            FileOutputStream(cacheBg).use { bg.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            FileOutputStream(cacheBd).use { bd.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            cacheKey.writeText(key)
+        }
+    }
+
+    /** Carga sincrónica (pocos milisegundos) del último fondo procesado, si coincide con la configuración. */
+    fun loadCached(id: String, blur: Int) {
+        runCatching {
+            val key = "$id#$blur"
+            if (!cacheKey.exists() || cacheKey.readText() != key) return
+            val bg = BitmapFactory.decodeFile(cacheBg.absolutePath) ?: return
+            val bd = BitmapFactory.decodeFile(cacheBd.absolutePath) ?: return
+            _images.value = WallpaperImages(bg.asImageBitmap(), bd.asImageBitmap())
+            lastKey = key
+        }
     }
 
     suspend fun thumbnail(id: String): ImageBitmap? = withContext(Dispatchers.Default) {

@@ -5,7 +5,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Shader
+import android.util.DisplayMetrics
 import android.graphics.drawable.Drawable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -14,6 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 data class AppEntry(
@@ -27,6 +35,7 @@ data class AppVisual(
     val icon: ImageBitmap?,
     val color: Int,
     val hasBanner: Boolean,
+    val light: Boolean = false,
 )
 
 class AppRepository(private val context: Context) {
@@ -67,12 +76,44 @@ class AppRepository(private val context: Context) {
         v
     }
 
+    private val iconDir: File get() = File(context.filesDir, "icons").apply { mkdirs() }
+
+    fun customIconFile(pkg: String) = File(iconDir, "$pkg.png")
+
+    /** Guarda una imagen propia para la tarjeta de una app (recortada a 16:9). */
+    fun saveCustomIcon(pkg: String, bytes: ByteArray): Boolean {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0) return false
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= TILE_W && bounds.outHeight / (sample * 2) >= TILE_H) sample *= 2
+        val src = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return false
+        val out = cropTo(src, TILE_W, TILE_H)
+        FileOutputStream(customIconFile(pkg)).use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        invalidate(pkg)
+        return true
+    }
+
+    /** Carga un recurso de la app en la densidad más alta disponible (xxxhdpi) para que se vea nítido en TV. */
+    private fun hiRes(pkg: String, resId: Int): Drawable? {
+        if (resId == 0) return null
+        val res = runCatching { pm.getResourcesForApplication(pkg) }.getOrNull() ?: return null
+        return runCatching { res.getDrawableForDensity(resId, DisplayMetrics.DENSITY_XXXHIGH, null) }.getOrNull()
+    }
+
     private fun loadBanner(pkg: String): Drawable? {
         val leanback = runCatching { pm.getLeanbackLaunchIntentForPackage(pkg) }.getOrNull()
-        val fromActivity = leanback?.let { intent ->
-            runCatching { pm.resolveActivity(intent, 0)?.activityInfo?.loadBanner(pm) }.getOrNull()
-        }
-        return fromActivity ?: runCatching { pm.getApplicationInfo(pkg, 0).loadBanner(pm) }.getOrNull()
+        val activity = leanback?.let { runCatching { pm.resolveActivity(it, 0)?.activityInfo }.getOrNull() }
+        val app = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull()
+        val resId = activity?.banner?.takeIf { it != 0 } ?: app?.banner ?: 0
+        return hiRes(pkg, resId)
+            ?: activity?.let { runCatching { it.loadBanner(pm) }.getOrNull() }
+            ?: app?.let { runCatching { it.loadBanner(pm) }.getOrNull() }
+    }
+
+    private fun loadIcon(pkg: String): Drawable? {
+        val app = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull()
+        return hiRes(pkg, app?.icon ?: 0) ?: runCatching { pm.getApplicationIcon(pkg) }.getOrNull()
     }
 
     /** Escala el banner respetando su proporción (sin recortes ni deformaciones) para que quepa en la tarjeta. */
@@ -87,39 +128,97 @@ class AppRepository(private val context: Context) {
     }
 
     private fun buildVisual(pkg: String, mode: IconMode): AppVisual {
-        val banner = if (mode != IconMode.ICON) loadBanner(pkg) else null
-        val iconDrawable = runCatching { pm.getApplicationIcon(pkg) }.getOrNull()
-        val iconBmp = iconDrawable?.let { runCatching { it.toBitmap(ICON, ICON, Bitmap.Config.ARGB_8888) }.getOrNull() }
-        val bannerBmp = banner?.let { runCatching { fitBanner(it) }.getOrNull() }
-        val color = dominantColor(bannerBmp ?: iconBmp)
+        val iconBmp = loadIcon(pkg)?.let { runCatching { it.toBitmap(ICON, ICON, Bitmap.Config.ARGB_8888) }.getOrNull() }
+        val custom = if (mode == IconMode.CUSTOM) customIconFile(pkg).takeIf { it.exists() }
+            ?.let { BitmapFactory.decodeFile(it.absolutePath) }?.let { cropTo(it, TILE_W, TILE_H) } else null
+        val preferIcon = mode == IconMode.ICON || (mode == IconMode.AUTO && prefersIcon(pkg))
+        val bannerBmp = if (custom == null && !preferIcon) loadBanner(pkg)?.let { runCatching { fitBanner(it) }.getOrNull() } else null
+        val color = dominantColor(custom ?: bannerBmp ?: iconBmp)
 
         val tile = Bitmap.createBitmap(TILE_W, TILE_H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(tile)
-        if (bannerBmp != null) {
-            canvas.drawColor(shade(color, 0.35f))
-            canvas.drawBitmap(bannerBmp, ((TILE_W - bannerBmp.width) / 2).toFloat(), ((TILE_H - bannerBmp.height) / 2).toFloat(), null)
-        } else {
-            canvas.drawColor(shade(color, 0.55f))
-            if (iconBmp != null) {
-                val size = (TILE_H * 0.62f).toInt()
-                val left = (TILE_W - size) / 2
-                val top = (TILE_H - size) / 2
-                val scaled = Bitmap.createScaledBitmap(iconBmp, size, size, true)
-                canvas.drawBitmap(scaled, left.toFloat(), top.toFloat(), null)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        when {
+            custom != null -> canvas.drawBitmap(custom, 0f, 0f, paint)
+            bannerBmp != null -> {
+                canvas.drawColor(edgeColor(bannerBmp) ?: shade(color, 0.35f))
+                canvas.drawBitmap(bannerBmp, ((TILE_W - bannerBmp.width) / 2).toFloat(), ((TILE_H - bannerBmp.height) / 2).toFloat(), paint)
             }
+            iconBmp != null -> {
+                // Ícono de fondo completo (cuadrado opaco): se extiende su propio color a todo el ancho
+                // para que parezca un banner. Si el ícono es transparente, va sobre un degradado de su color.
+                val bleed = edgeColor(iconBmp)
+                if (bleed != null) {
+                    canvas.drawColor(bleed)
+                    val size = TILE_H
+                    canvas.drawBitmap(iconBmp, null, Rect((TILE_W - size) / 2, 0, (TILE_W + size) / 2, size), paint)
+                } else {
+                    val top = shade(color, 0.75f)
+                    val bottom = shade(color, 0.45f)
+                    canvas.drawPaint(Paint().apply { shader = LinearGradient(0f, 0f, 0f, TILE_H.toFloat(), top, bottom, Shader.TileMode.CLAMP) })
+                    val size = (TILE_H * 0.66f).toInt()
+                    canvas.drawBitmap(iconBmp, null, Rect((TILE_W - size) / 2, (TILE_H - size) / 2, (TILE_W + size) / 2, (TILE_H + size) / 2), paint)
+                }
+            }
+            else -> canvas.drawColor(shade(color, 0.55f))
         }
+        tile.setHasMipMap(true)
         return AppVisual(
             tile = tile.asImageBitmap(),
             icon = iconBmp?.asImageBitmap(),
             color = color,
             hasBanner = bannerBmp != null,
+            light = isLight(tile),
         )
     }
 
+    /** Apps cuyo banner de TV viene recortado o se ve mal; en modo automático usan su ícono. */
+    private fun prefersIcon(pkg: String): Boolean {
+        val label = _apps.value.firstOrNull { it.pkg == pkg }?.label?.lowercase().orEmpty()
+        return pkg in ICON_FIRST || "prime video" in label
+    }
+
     companion object {
-        const val TILE_W = 256
-        const val TILE_H = 144
-        const val ICON = 128
+        const val TILE_W = 400
+        const val TILE_H = 225
+        const val ICON = 256
+        private val ICON_FIRST = setOf("com.amazon.avod", "com.amazon.avod.thirdpartyclient", "com.amazon.firebat")
+
+        fun cropTo(src: Bitmap, w: Int, h: Int): Bitmap {
+            val target = w.toFloat() / h
+            val ratio = src.width.toFloat() / src.height
+            val crop = if (ratio > target) {
+                val cw = (src.height * target).toInt(); Rect((src.width - cw) / 2, 0, (src.width + cw) / 2, src.height)
+            } else {
+                val ch = (src.width / target).toInt(); Rect(0, (src.height - ch) / 2, src.width, (src.height + ch) / 2)
+            }
+            val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            Canvas(out).drawBitmap(src, crop, Rect(0, 0, w, h), Paint(Paint.FILTER_BITMAP_FLAG))
+            return out
+        }
+
+        /** Si los bordes de la imagen son opacos y del mismo color, devuelve ese color (para extenderlo). */
+        fun edgeColor(b: Bitmap): Int? {
+            val pts = listOf(2 to 2, b.width - 3 to 2, 2 to b.height - 3, b.width - 3 to b.height - 3, 2 to b.height / 2, b.width - 3 to b.height / 2)
+            val cs = pts.map { (x, y) -> b.getPixel(x.coerceIn(0, b.width - 1), y.coerceIn(0, b.height - 1)) }
+            if (cs.any { Color.alpha(it) < 250 }) return null
+            val r = cs.map { Color.red(it) }; val g = cs.map { Color.green(it) }; val bl = cs.map { Color.blue(it) }
+            val spread = (r.max() - r.min()) + (g.max() - g.min()) + (bl.max() - bl.min())
+            return if (spread < 40) Color.rgb(r.average().toInt(), g.average().toInt(), bl.average().toInt()) else null
+        }
+
+        /** ¿La tarjeta es clara en sus bordes? (para cambiar el contorno de enfoque y que se distinga). */
+        fun isLight(b: Bitmap): Boolean {
+            var sum = 0.0; var n = 0
+            val step = 8
+            for (x in 0 until b.width step step) for (y in listOf(1, b.height - 2)) {
+                val p = b.getPixel(x, y); sum += (0.299 * Color.red(p) + 0.587 * Color.green(p) + 0.114 * Color.blue(p)) / 255.0; n++
+            }
+            for (y in 0 until b.height step step) for (x in listOf(1, b.width - 2)) {
+                val p = b.getPixel(x, y); sum += (0.299 * Color.red(p) + 0.587 * Color.green(p) + 0.114 * Color.blue(p)) / 255.0; n++
+            }
+            return n > 0 && sum / n > 0.72
+        }
 
         /** Elige el color más vivo de la imagen (rojo para Netflix, azul para Prime, etc.). */
         fun dominantColor(b: Bitmap?): Int {

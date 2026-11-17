@@ -78,6 +78,8 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
                     Screen.Controls -> ControlsScreen(app)
                     Screen.Wallpaper -> WallpaperScreen(app, nav)
                     Screen.Dock -> DockScreen(app)
+                    Screen.QuickPanel -> QuickPanelScreen(app, nav)
+                    is Screen.IconUpload -> IconUploadScreen(app, nav, screen.pkg)
                     Screen.Blur -> BlurScreen(app)
                     Screen.Upload -> UploadScreen(app, nav)
                     Screen.Apps -> AppsScreen(app)

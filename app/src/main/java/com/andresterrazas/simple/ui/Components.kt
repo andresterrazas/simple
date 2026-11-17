@@ -256,6 +256,27 @@ fun RadioRow(title: String, selected: Boolean, modifier: Modifier = Modifier, su
     })
 }
 
+/** Fila con interruptor encendido/apagado. */
+@Composable
+fun ToggleRow(title: String, checked: Boolean, modifier: Modifier = Modifier, subtitle: String? = null, onClick: () -> Unit) {
+    SettingRow(title = title, subtitle = subtitle, modifier = modifier, onClick = onClick, trailing = { focused ->
+        val on = if (focused) LocalStyle.current.focusedText else Color.White
+        val knobX by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.8f, stiffness = 700f), label = "knob")
+        Spacer(Modifier.width(12.dp))
+        Box(
+            Modifier.size(width = 46.dp, height = 26.dp).clip(CircleShape)
+                .background(if (checked) on.copy(alpha = 0.9f) else on.copy(alpha = 0.25f)),
+        ) {
+            Box(
+                Modifier.padding(3.dp).size(20.dp)
+                    .graphicsLayer { translationX = knobX * 20.dp.toPx() }
+                    .clip(CircleShape)
+                    .background(if (checked) (if (focused) Color.White else LocalStyle.current.focusedText) else on),
+            )
+        }
+    })
+}
+
 /** Botón circular (ojo, flechas, ajustes del encabezado). */
 @Composable
 fun CircleButton(icon: ImageVector, modifier: Modifier = Modifier, size: Int = 44, iconTint: Color? = null, onClick: () -> Unit) {
@@ -337,9 +358,15 @@ private class PivotScroll : BringIntoViewSpec {
         get() = if (android.os.SystemClock.uptimeMillis() - createdAt < 450) androidx.compose.animation.core.snap()
         else androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 420f)
 
+    // Solo desplaza cuando el elemento sale de la zona cómoda (25 %–72 % de la altura): menos movimiento en pantalla.
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val target = containerSize * 0.38f - size / 2f
-        return offset - target
+        val top = containerSize * 0.25f
+        val bottom = containerSize * 0.72f
+        return when {
+            offset < top -> offset - top
+            offset + size > bottom -> offset + size - bottom
+            else -> 0f
+        }
     }
 }
 

@@ -53,6 +53,12 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.focus.FocusProperties
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -414,27 +420,59 @@ fun AppTile(
             .focusable(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Contorno de enfoque por fuera de la tarjeta (con un pequeño espacio), para que se distinga
+        // también en apps de fondo blanco; en tarjetas claras el contorno se vuelve grisáceo con sombra.
+        val light = visual?.light == true
+        val ringColor = if (light) Color(0xFFCDD3DD) else Color.White
+        val ringAlpha by animateFloatAsState(if (focused && look.outline) 1f else 0f, tween(140), label = "ring")
         Box(
             Modifier
                 .size(width, height)
                 .graphicsLayer { scaleX = scale; scaleY = scale }
-                .clip(shape)
-                .background(Color(visual?.color ?: 0xFF2B2F3A.toInt()).copy(alpha = 0.9f)),
-            contentAlignment = Alignment.Center,
+                .drawBehind {
+                    if (ringAlpha > 0f) {
+                        val gap = 3.dp.toPx()
+                        val sw = 2.5.dp.toPx()
+                        val inset = gap + sw / 2
+                        val radius = look.radius.toPx() + inset
+                        if (light) {
+                            val so = inset + sw
+                            drawRoundRect(
+                                color = Color.Black.copy(alpha = 0.28f * ringAlpha),
+                                topLeft = Offset(-so, -so), size = Size(size.width + 2 * so, size.height + 2 * so),
+                                cornerRadius = CornerRadius(radius + sw), style = Stroke(1.5.dp.toPx()),
+                            )
+                        }
+                        drawRoundRect(
+                            color = ringColor.copy(alpha = ringAlpha),
+                            topLeft = Offset(-inset, -inset), size = Size(size.width + 2 * inset, size.height + 2 * inset),
+                            cornerRadius = CornerRadius(radius), style = Stroke(sw),
+                        )
+                    }
+                },
         ) {
-            visual?.let {
-                Image(it.tile, contentDescription = entry.label, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            }
-            if (focused && look.outline) Box(Modifier.fillMaxSize().border(3.dp, Color.White, shape))
-            if (moving) {
-                Row(
-                    Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Left, Color.White, 22.dp, Modifier.padding(start = 6.dp))
-                    Icon(Icons.Move, Color.White, 22.dp)
-                    Icon(Icons.Right, Color.White, 22.dp, Modifier.padding(end = 6.dp))
+            Box(
+                Modifier.fillMaxSize().clip(shape)
+                    .background(Color(visual?.color ?: 0xFF2B2F3A.toInt()).copy(alpha = 0.9f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                visual?.let {
+                    Image(
+                        it.tile, contentDescription = entry.label, modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop, filterQuality = FilterQuality.High,
+                    )
+                }
+                if (light) Box(Modifier.fillMaxSize().border(1.dp, Color.Black.copy(alpha = 0.10f), shape))
+                if (moving) {
+                    Row(
+                        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Left, Color.White, 22.dp, Modifier.padding(start = 6.dp))
+                        Icon(Icons.Move, Color.White, 22.dp)
+                        Icon(Icons.Right, Color.White, 22.dp, Modifier.padding(end = 6.dp))
+                    }
                 }
             }
         }

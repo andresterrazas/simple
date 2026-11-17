@@ -32,6 +32,7 @@ class SimpleApp : Application() {
         store = PrefsStore(this)
         repo = AppRepository(this)
         wallpapers = WallpaperEngine(this)
+        store.state.value.let { wallpapers.loadCached(it.wallpaper, it.blur) }
 
         scope.launch {
             repo.refresh()

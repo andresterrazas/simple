@@ -44,6 +44,7 @@ enum class IconMode(val label: String) {
     AUTO("Automático"),
     BANNER("Banner"),
     ICON("Ícono"),
+    CUSTOM("Imagen propia"),
 }
 
 enum class InterceptMode(val label: String, val description: String) {
@@ -83,6 +84,12 @@ enum class FocusZoom(val label: String, val scale: Float) {
     LARGE("Grande", 1.16f),
 }
 
+enum class HomeLongAction(val label: String, val description: String) {
+    QUICK("Panel rápido de simple", "Dormir, energía, Wi‑Fi, ajustes y más"),
+    SETTINGS("Ajustes del Fire TV", "Abre directamente la configuración"),
+    NONE("Nada", "Mantener presionado no hace nada especial"),
+}
+
 const val CONTROL_CUSTOM = "custom"
 const val CONTROL_SETTINGS = "settings"
 const val CONTROL_WIFI = "wifi"
@@ -113,6 +120,8 @@ data class Prefs(
     val labelMode: LabelMode = LabelMode.FOCUS,
     val focusZoom: FocusZoom = FocusZoom.NORMAL,
     val focusOutline: Boolean = true,
+    val directHome: Boolean = false,
+    val homeLong: HomeLongAction = HomeLongAction.QUICK,
 ) {
     fun iconMode(pkg: String): IconMode = iconModes[pkg] ?: IconMode.AUTO
 
@@ -220,6 +229,8 @@ class PrefsStore(context: Context) {
             labelMode = enumOr(sp.getString("labelMode", null), d.labelMode),
             focusZoom = enumOr(sp.getString("focusZoom", null), d.focusZoom),
             focusOutline = sp.getBoolean("focusOutline", d.focusOutline),
+            directHome = sp.getBoolean("directHome", d.directHome),
+            homeLong = enumOr(sp.getString("homeLong", null), d.homeLong),
         )
     }
 
@@ -246,6 +257,8 @@ class PrefsStore(context: Context) {
             .putString("labelMode", p.labelMode.name)
             .putString("focusZoom", p.focusZoom.name)
             .putBoolean("focusOutline", p.focusOutline)
+            .putBoolean("directHome", p.directHome)
+            .putString("homeLong", p.homeLong.name)
             .apply()
     }
 }

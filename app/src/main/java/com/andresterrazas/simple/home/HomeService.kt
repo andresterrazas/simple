@@ -8,10 +8,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.andresterrazas.simple.MainActivity
 import com.andresterrazas.simple.SimpleApp
+import com.andresterrazas.simple.data.HomeLongAction
 import com.andresterrazas.simple.data.InterceptMode
+import com.andresterrazas.simple.data.SystemActions
 
 object DefaultHome {
     const val AMAZON_LAUNCHER = "com.amazon.tv.launcher"
@@ -20,6 +23,8 @@ object DefaultHome {
     @Volatile var pausedUntil = 0L
     @Volatile var foreground = false
     private val events = ArrayDeque<String>()
+    private val keys = ArrayDeque<String>()
+    @Volatile var homeKeySeen = false
 
     fun component(ctx: Context) = ComponentName(ctx, HomeService::class.java)
 
@@ -31,6 +36,17 @@ object DefaultHome {
     }
 
     fun recentEvents(): List<String> = synchronized(events) { events.toList() }
+
+    fun logKey(e: android.view.KeyEvent) {
+        if (e.keyCode == android.view.KeyEvent.KEYCODE_HOME) homeKeySeen = true
+        if (e.action != android.view.KeyEvent.ACTION_DOWN || e.repeatCount > 0) return
+        synchronized(keys) {
+            keys.addFirst(android.view.KeyEvent.keyCodeToString(e.keyCode).removePrefix("KEYCODE_"))
+            while (keys.size > 10) keys.removeLast()
+        }
+    }
+
+    fun recentKeys(): List<String> = synchronized(keys) { keys.toList() }
 
     fun isEnabled(ctx: Context): Boolean {
         val raw = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
@@ -85,9 +101,55 @@ object DefaultHome {
 
 class HomeService : AccessibilityService() {
     private var lastLaunch = 0L
+    private var homeDownAt = 0L
+    private var homeLongFired = false
 
     override fun onServiceConnected() {
         DefaultHome.running = true
+        instance = this
+    }
+
+    /**
+     * Experimental: si Fire OS entrega el botón Inicio al servicio, simple lo atiende directamente
+     * (sin que aparezca el inicio de Amazon) y distingue la pulsación larga.
+     */
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        DefaultHome.logKey(event)
+        if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
+        val p = (application as SimpleApp).store.state.value
+        if (!p.directHome) return false
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                if (event.repeatCount == 0) {
+                    homeDownAt = event.eventTime
+                    homeLongFired = false
+                } else if (!homeLongFired && (event.isLongPress || event.eventTime - homeDownAt >= LONG_PRESS_MS)) {
+                    homeLongFired = true
+                    onHomeLong(p.homeLong)
+                }
+            }
+            KeyEvent.ACTION_UP -> if (!homeLongFired) {
+                if (event.eventTime - homeDownAt >= LONG_PRESS_MS) onHomeLong(p.homeLong) else openSimple(quick = false)
+            }
+        }
+        return true
+    }
+
+    private fun onHomeLong(action: HomeLongAction) {
+        when (action) {
+            HomeLongAction.QUICK -> openSimple(quick = true)
+            HomeLongAction.SETTINGS -> SystemActions.openSettings(this)
+            HomeLongAction.NONE -> Unit
+        }
+    }
+
+    private fun openSimple(quick: Boolean) {
+        lastLaunch = SystemClock.uptimeMillis()
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            .putExtra(MainActivity.EXTRA_FROM_HOME, true)
+            .putExtra(MainActivity.EXTRA_QUICK, quick)
+        runCatching { startActivity(intent) }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -111,6 +173,15 @@ class HomeService : AccessibilityService() {
 
     override fun onDestroy() {
         DefaultHome.running = false
+        if (instance === this) instance = null
         super.onDestroy()
+    }
+
+    companion object {
+        const val LONG_PRESS_MS = 550L
+        @Volatile var instance: HomeService? = null
+
+        /** Acciones globales del sistema disponibles para el panel rápido. */
+        fun global(action: Int): Boolean = instance?.performGlobalAction(action) ?: false
     }
 }

@@ -15,7 +15,11 @@ import java.net.ServerSocket
 import java.net.Socket
 
 /** Servidor HTTP mínimo en la red local para subir fondos desde el celular. */
-class UploadServer(private val onImage: (ByteArray) -> Boolean) {
+class UploadServer(
+    private val title: String = "Elige una foto para usarla como fondo en tu Fire TV.",
+    private val doneText: String = "Tu foto ya es el fondo de simple en la TV.",
+    private val onImage: (ByteArray) -> Boolean,
+) {
     private var server: ServerSocket? = null
 
     fun start() {
@@ -68,10 +72,10 @@ class UploadServer(private val onImage: (ByteArray) -> Boolean) {
                     val boundary = headers["content-type"]?.substringAfter("boundary=", "")?.trim('"', ' ') ?: ""
                     val file = if (boundary.isNotEmpty()) extractFile(body, boundary) else null
                     val ok = file != null && runCatching { onImage(file) }.getOrDefault(false)
-                    if (ok) respond(out, 200, page("¡Listo!", "Tu foto ya es el fondo de simple en la TV.", true))
+                    if (ok) respond(out, 200, page("¡Listo!", doneText, true))
                     else respond(out, 400, page("No se pudo usar esa foto", "Intenta con otra imagen (JPG o PNG).", true))
                 } else {
-                    respond(out, 200, uploadPage())
+                    respond(out, 200, uploadPage(title))
                 }
             }
         }
@@ -170,7 +174,7 @@ input[type=file]{display:none}button,a.btn{display:block;width:100%;padding:16px
 color:#1e2230;font-size:17px;font-weight:600;text-align:center;text-decoration:none}#n{font-size:14px;opacity:.8;margin-top:6px}
 </style></head><body><div class="card">$body</div></body></html>"""
 
-        private fun uploadPage() = shell("""<h1>simple</h1><p>Elige una foto para usarla como fondo en tu Fire TV.</p>
+        private fun uploadPage(title: String) = shell("""<h1>simple</h1><p>$title</p>
 <form method="post" action="/upload" enctype="multipart/form-data">
 <label>📷 Elegir foto<input type="file" name="photo" accept="image/*" required
 onchange="document.getElementById('n').textContent=this.files[0]?this.files[0].name:''"><div id="n"></div></label>

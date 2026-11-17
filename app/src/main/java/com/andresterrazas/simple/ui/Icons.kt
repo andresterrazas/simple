@@ -78,6 +78,8 @@ object Icons {
     val Bluetooth = build("bluetooth", "M7 7l10 10-5 4V3l5 4L7 17")
     val Calendar = build("calendar", "M4 6h16v14H4z", "M4 10h16", "M8 3v4", "M16 3v4")
     val Dock = build("dock", "M3 14h18a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z", "M6 17h2", "M11 17h2", "M16 17h2", "M12 4v6", "M9 7l3 3 3-3")
+    val Moon = build("moon", "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z")
+    val Power = build("power", "M12 3v8", "M6.3 6.3a8 8 0 1 0 11.4 0")
     val Refresh = build("refresh", "M20 12a8 8 0 1 1-2.3-5.7", "M20 4v5h-5")
 }
 
