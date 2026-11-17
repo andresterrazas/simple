@@ -79,6 +79,8 @@ import com.andresterrazas.simple.data.CONTROL_SETTINGS
 import com.andresterrazas.simple.data.CONTROL_STORE
 import com.andresterrazas.simple.data.CONTROL_WIFI
 import com.andresterrazas.simple.data.ClockMode
+import com.andresterrazas.simple.data.DockOpacity
+import com.andresterrazas.simple.data.LabelMode
 import com.andresterrazas.simple.data.Prefs
 import com.andresterrazas.simple.data.SystemActions
 import com.andresterrazas.simple.data.orderApps
@@ -88,10 +90,34 @@ import java.util.Date
 import java.util.Locale
 
 const val COLS = 6
-private val TILE_W = 124.dp
-private val TILE_GAP = 18.dp
 private val PANEL_PAD = 18.dp
-private val LABEL_H = 30.dp
+
+/** Apariencia de las tarjetas de apps, derivada de la configuración del dock. */
+data class TileLook(
+    val width: Dp,
+    val gap: Dp,
+    val radius: Dp,
+    val zoom: Float,
+    val outline: Boolean,
+    val labels: LabelMode,
+) {
+    val height: Dp get() = width * 9f / 16f
+    val labelH: Dp get() = if (labels == LabelMode.NEVER) 8.dp else 30.dp
+}
+
+fun Prefs.tileLook() = TileLook(
+    width = dockSize.tile.dp,
+    gap = dockSize.gap.dp,
+    radius = dockShape.tileRadius.dp,
+    zoom = focusZoom.scale,
+    outline = focusOutline,
+    labels = labelMode,
+)
+
+/** Tinte del panel del dock según la opacidad elegida y el estilo claro u oscuro. */
+fun dockTint(p: Prefs, style: UiStyle): Color =
+    if (style.dark) Color.Black.copy(alpha = (p.dockOpacity.alpha * 1.5f).coerceAtMost(0.7f))
+    else Color.White.copy(alpha = p.dockOpacity.alpha)
 
 @Composable
 fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
@@ -187,11 +213,11 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val tileH = TILE_W * 9f / 16f
-        val dockH = PANEL_PAD + tileH + LABEL_H + 8.dp
+        val look = prefs.tileLook()
+        val dockH = PANEL_PAD + look.height + look.labelH + 8.dp
         val headerTop = 26.dp
         val headerH = 64.dp
-        val rowWidth = TILE_W * COLS + TILE_GAP * (COLS - 1) + PANEL_PAD * 2
+        val rowWidth = look.width * COLS + look.gap * (COLS - 1) + PANEL_PAD * 2
         // Posiciones fijas: el dock vive abajo y sube arriba al expandir. Nada se desplaza al mover el foco.
         val topTarget = when {
             !hasFavs -> headerTop + headerH + 20.dp
@@ -211,11 +237,11 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
             if (hasFavs) {
                 Box(
                     Modifier.width(rowWidth)
-                        .glass(RoundedCornerShape(32.dp), LocalStyle.current.panel)
+                        .glass(RoundedCornerShape(prefs.dockShape.panelRadius.dp), dockTint(prefs, LocalStyle.current), if (prefs.dockOpacity == DockOpacity.NONE) 0f else 1f)
                         .padding(start = PANEL_PAD, end = PANEL_PAD, top = PANEL_PAD, bottom = 8.dp)
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+                        horizontalArrangement = Arrangement.spacedBy(look.gap),
                         modifier = Modifier.onPreviewKeyEvent { ev ->
                             if (ev.type != KeyEventType.KeyDown || ui.moving != null) return@onPreviewKeyEvent false
                             when (ev.nativeKeyEvent.keyCode) {
@@ -232,7 +258,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                         favs.forEachIndexed { i, e ->
                             key(e.pkg) {
                                 AppTile(
-                                    app = app, entry = e, prefs = prefs, width = TILE_W,
+                                    app = app, entry = e, prefs = prefs, look = look,
                                     canFocus = true, moving = ui.moving == e.pkg,
                                     focusRequester = fr(e.pkg),
                                     routes = {
@@ -264,11 +290,11 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     rows.forEachIndexed { r, row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(look.gap)) {
                             row.forEachIndexed { c, e ->
                                 key(e.pkg) {
                                     AppTile(
-                                        app = app, entry = e, prefs = prefs, width = TILE_W,
+                                        app = app, entry = e, prefs = prefs, look = look,
                                         canFocus = gridVisible, moving = ui.moving == e.pkg,
                                         focusRequester = fr(e.pkg),
                                         routes = {
@@ -323,7 +349,7 @@ fun AppTile(
     app: SimpleApp,
     entry: AppEntry,
     prefs: Prefs,
-    width: Dp,
+    look: TileLook,
     canFocus: Boolean,
     moving: Boolean,
     focusRequester: FocusRequester,
@@ -340,12 +366,18 @@ fun AppTile(
         value = app.repo.loadVisual(entry.pkg, mode)
     }
     val scale by animateFloatAsState(
-        if (focused) (if (moving) 1.14f else 1.1f) else 1f,
+        if (focused) (if (moving) look.zoom + 0.04f else look.zoom) else 1f,
         spring(dampingRatio = 0.72f, stiffness = 520f), label = "tileScale",
     )
-    val labelAlpha by animateFloatAsState(if (focused) 1f else 0f, tween(180), label = "label")
-    val height = width * 9f / 16f
-    val shape = RoundedCornerShape(14.dp)
+    val labelTarget = when (look.labels) {
+        LabelMode.FOCUS -> if (focused) 1f else 0f
+        LabelMode.ALWAYS -> if (focused) 1f else 0.7f
+        LabelMode.NEVER -> 0f
+    }
+    val labelAlpha by animateFloatAsState(labelTarget, tween(180), label = "label")
+    val width = look.width
+    val height = look.height
+    val shape = RoundedCornerShape(look.radius)
 
     Column(
         modifier = Modifier
@@ -393,7 +425,7 @@ fun AppTile(
             visual?.let {
                 Image(it.tile, contentDescription = entry.label, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
-            if (focused) Box(Modifier.fillMaxSize().border(3.dp, Color.White, shape))
+            if (focused && look.outline) Box(Modifier.fillMaxSize().border(3.dp, Color.White, shape))
             if (moving) {
                 Row(
                     Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)),
@@ -414,7 +446,7 @@ fun AppTile(
             modifier = Modifier
                 .width(width + 40.dp)
                 .padding(top = 10.dp)
-                .height(LABEL_H - 10.dp)
+                .height((look.labelH - 10.dp).coerceAtLeast(0.dp))
                 .graphicsLayer { alpha = if (moving) 1f else labelAlpha },
         )
     }

@@ -311,7 +311,8 @@ fun SettingsPage(
                 }
             }
         }
-        CompositionLocalProvider(LocalBringIntoViewSpec provides PivotScroll) {
+        val pivot = remember { PivotScroll() }
+        CompositionLocalProvider(LocalBringIntoViewSpec provides pivot) {
             Column(
                 Modifier.weight(0.58f).fillMaxHeight()
                     .fadingEdges()
@@ -325,9 +326,17 @@ fun SettingsPage(
     }
 }
 
-/** Mantiene el elemento enfocado cerca del centro de la lista, como en la interfaz de un TV, en vez de pegado al borde. */
+/**
+ * Mantiene el elemento enfocado cerca del centro de la lista, como en la interfaz de un TV.
+ * Al entrar a una pantalla el primer salto es instantáneo, para que no se vea la lista "corriendo" a su lugar.
+ */
 @OptIn(ExperimentalFoundationApi::class)
-private val PivotScroll = object : BringIntoViewSpec {
+private class PivotScroll : BringIntoViewSpec {
+    private val createdAt = android.os.SystemClock.uptimeMillis()
+    override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float>
+        get() = if (android.os.SystemClock.uptimeMillis() - createdAt < 450) androidx.compose.animation.core.snap()
+        else androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 420f)
+
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val target = containerSize * 0.38f - size / 2f
         return offset - target

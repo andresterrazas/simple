@@ -51,6 +51,38 @@ enum class InterceptMode(val label: String, val description: String) {
     BROAD("Amplio", "Cualquier pantalla del inicio de Amazon. Úsalo si el modo estricto no responde."),
 }
 
+enum class DockOpacity(val label: String, val alpha: Float) {
+    NONE("Sin fondo", 0f),
+    LOW("Baja", 0.10f),
+    MEDIUM("Media", 0.18f),
+    HIGH("Alta", 0.30f),
+    MAX("Máxima", 0.45f),
+}
+
+enum class DockSize(val label: String, val tile: Int, val gap: Int) {
+    SMALL("Pequeño", 108, 18),
+    MEDIUM("Mediano", 124, 18),
+    LARGE("Grande", 138, 14),
+}
+
+enum class DockShape(val label: String, val tileRadius: Int, val panelRadius: Int) {
+    SOFT("Suave", 14, 32),
+    ROUND("Redonda", 22, 40),
+    SQUARE("Recta", 6, 14),
+}
+
+enum class LabelMode(val label: String) {
+    FOCUS("Al enfocar"),
+    ALWAYS("Siempre"),
+    NEVER("Nunca"),
+}
+
+enum class FocusZoom(val label: String, val scale: Float) {
+    SUBTLE("Sutil", 1.05f),
+    NORMAL("Normal", 1.10f),
+    LARGE("Grande", 1.16f),
+}
+
 const val CONTROL_CUSTOM = "custom"
 const val CONTROL_SETTINGS = "settings"
 const val CONTROL_WIFI = "wifi"
@@ -75,6 +107,12 @@ data class Prefs(
     val intercept: InterceptMode = InterceptMode.STRICT,
     val seeded: Boolean = false,
     val setupShown: Boolean = false,
+    val dockOpacity: DockOpacity = DockOpacity.MEDIUM,
+    val dockSize: DockSize = DockSize.MEDIUM,
+    val dockShape: DockShape = DockShape.SOFT,
+    val labelMode: LabelMode = LabelMode.FOCUS,
+    val focusZoom: FocusZoom = FocusZoom.NORMAL,
+    val focusOutline: Boolean = true,
 ) {
     fun iconMode(pkg: String): IconMode = iconModes[pkg] ?: IconMode.AUTO
 
@@ -176,6 +214,12 @@ class PrefsStore(context: Context) {
             intercept = enumOr(sp.getString("intercept", null), d.intercept),
             seeded = sp.getBoolean("seeded", false),
             setupShown = sp.getBoolean("setupShown", false),
+            dockOpacity = enumOr(sp.getString("dockOpacity", null), d.dockOpacity),
+            dockSize = enumOr(sp.getString("dockSize", null), d.dockSize),
+            dockShape = enumOr(sp.getString("dockShape", null), d.dockShape),
+            labelMode = enumOr(sp.getString("labelMode", null), d.labelMode),
+            focusZoom = enumOr(sp.getString("focusZoom", null), d.focusZoom),
+            focusOutline = sp.getBoolean("focusOutline", d.focusOutline),
         )
     }
 
@@ -196,6 +240,12 @@ class PrefsStore(context: Context) {
             .putString("intercept", p.intercept.name)
             .putBoolean("seeded", p.seeded)
             .putBoolean("setupShown", p.setupShown)
+            .putString("dockOpacity", p.dockOpacity.name)
+            .putString("dockSize", p.dockSize.name)
+            .putString("dockShape", p.dockShape.name)
+            .putString("labelMode", p.labelMode.name)
+            .putString("focusZoom", p.focusZoom.name)
+            .putBoolean("focusOutline", p.focusOutline)
             .apply()
     }
 }

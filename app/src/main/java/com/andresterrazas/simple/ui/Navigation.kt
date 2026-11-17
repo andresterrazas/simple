@@ -16,6 +16,7 @@ sealed interface Screen {
     data object Clock : Screen
     data object Controls : Screen
     data object Wallpaper : Screen
+    data object Dock : Screen
     data object Blur : Screen
     data object Upload : Screen
     data object Apps : Screen

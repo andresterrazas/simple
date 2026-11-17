@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -104,6 +105,7 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
         SectionLabel("Personalizaciones")
         SettingRow("Orden de aplicaciones", Modifier.restorableFocus(s, "order"), icon = Icons.Sort, value = p.orderMode.label) { nav.push(Screen.Order) }
         SettingRow("Reloj", Modifier.restorableFocus(s, "clock"), icon = Icons.Clock, value = p.clockMode.label) { nav.push(Screen.Clock) }
+        SettingRow("Dock", Modifier.restorableFocus(s, "dock"), icon = Icons.Dock, subtitle = "Opacidad, tamaño, forma y nombres") { nav.push(Screen.Dock) }
         SettingRow("Controles del encabezado", Modifier.restorableFocus(s, "controls"), icon = Icons.Sliders) { nav.push(Screen.Controls) }
         SettingRow("Fondo", Modifier.restorableFocus(s, "wallpaper"), icon = Icons.ImageIc) { nav.push(Screen.Wallpaper) }
 
@@ -506,5 +508,99 @@ fun DiagnosticsScreen(app: SimpleApp) {
             app.store.update { it.copy(setupShown = false) }
             Toast.makeText(ctx, "Se mostrará al reiniciar simple", Toast.LENGTH_SHORT).show()
         }
+    }
+}
+
+@Composable
+private fun DockPreview(app: SimpleApp) {
+    val p by app.store.state.collectAsState()
+    val apps by app.repo.apps.collectAsState()
+    val style = LocalStyle.current
+    val look = p.tileLook()
+    val sample = remember(apps, p.favorites) {
+        val byPkg = apps.associateBy { it.pkg }
+        (p.favorites.mapNotNull { byPkg[it] } + apps).distinctBy { it.pkg }.take(3)
+    }
+    // Vista previa a escala: tres apps con la apariencia elegida, la primera "enfocada".
+    val scale = 0.82f
+    Box(
+        Modifier.size(330.dp, 150.dp).clip(RoundedCornerShape(26.dp)).background(Color.Black.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+                .glass(RoundedCornerShape(p.dockShape.panelRadius.dp), dockTint(p, style), if (p.dockOpacity == com.andresterrazas.simple.data.DockOpacity.NONE) 0f else 1f)
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(look.gap),
+        ) {
+            sample.forEachIndexed { i, e ->
+                val v by produceState(app.repo.cached(e.pkg, p.iconMode(e.pkg)), e.pkg) { value = app.repo.loadVisual(e.pkg, p.iconMode(e.pkg)) }
+                val focused = i == 0
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.zIndex(if (focused) 1f else 0f)) {
+                    val shape = RoundedCornerShape(look.radius)
+                    Box(
+                        Modifier.size(look.width, look.height)
+                            .graphicsLayer { val z = if (focused) look.zoom else 1f; scaleX = z; scaleY = z }
+                            .clip(shape).background(Color(v?.color ?: 0xFF2B2F3A.toInt()))
+                    ) {
+                        v?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                        if (focused && look.outline) Box(Modifier.fillMaxSize().border(3.dp, Color.White, shape))
+                    }
+                    val labelAlpha = when (look.labels) {
+                        com.andresterrazas.simple.data.LabelMode.FOCUS -> if (focused) 1f else 0f
+                        com.andresterrazas.simple.data.LabelMode.ALWAYS -> if (focused) 1f else 0.7f
+                        com.andresterrazas.simple.data.LabelMode.NEVER -> 0f
+                    }
+                    BasicText(
+                        e.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = ts(14.sp, FontWeight.SemiBold),
+                        modifier = Modifier.width(look.width).padding(top = 8.dp).height((look.labelH - 8.dp).coerceAtLeast(0.dp))
+                            .graphicsLayer { alpha = labelAlpha },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DockScreen(app: SimpleApp) {
+    val p by app.store.state.collectAsState()
+    val s = "dock"
+    SettingsPage(title = "Dock", subtitle = "Así se verá tu fila de apps", left = { DockPreview(app) }) {
+        SectionLabel("Fondo del dock")
+        com.andresterrazas.simple.data.DockOpacity.entries.forEach { o ->
+            RadioRow(o.label, p.dockOpacity == o, Modifier.restorableFocus(s, "op_${o.name}", default = p.dockOpacity == o)) {
+                app.store.update { it.copy(dockOpacity = o) }
+            }
+        }
+        SectionLabel("Tamaño de las apps")
+        com.andresterrazas.simple.data.DockSize.entries.forEach { z ->
+            RadioRow(z.label, p.dockSize == z, Modifier.restorableFocus(s, "size_${z.name}")) {
+                app.store.update { it.copy(dockSize = z) }
+            }
+        }
+        SectionLabel("Forma")
+        com.andresterrazas.simple.data.DockShape.entries.forEach { f ->
+            RadioRow(f.label, p.dockShape == f, Modifier.restorableFocus(s, "shape_${f.name}")) {
+                app.store.update { it.copy(dockShape = f) }
+            }
+        }
+        SectionLabel("Nombres de las apps")
+        com.andresterrazas.simple.data.LabelMode.entries.forEach { l ->
+            RadioRow(l.label, p.labelMode == l, Modifier.restorableFocus(s, "label_${l.name}")) {
+                app.store.update { it.copy(labelMode = l) }
+            }
+        }
+        SectionLabel("Al enfocar una app")
+        com.andresterrazas.simple.data.FocusZoom.entries.forEach { z ->
+            RadioRow("Zoom ${z.label.lowercase()}", p.focusZoom == z, Modifier.restorableFocus(s, "zoom_${z.name}")) {
+                app.store.update { it.copy(focusZoom = z) }
+            }
+        }
+        SettingRow(
+            "Contorno blanco", Modifier.restorableFocus(s, "outline"), icon = Icons.Check,
+            value = if (p.focusOutline) "Activado" else "Desactivado",
+        ) { app.store.update { it.copy(focusOutline = !it.focusOutline) } }
     }
 }

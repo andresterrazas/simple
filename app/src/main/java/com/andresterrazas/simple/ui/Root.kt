@@ -1,7 +1,12 @@
+@file:OptIn(androidx.compose.animation.ExperimentalAnimationApi::class)
+
 package com.andresterrazas.simple.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -56,7 +61,12 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
                 Image(it.background, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
             Box(Modifier.fillMaxSize().background(style.scrim))
-            Crossfade(targetState = nav.current, animationSpec = tween(220), label = "nav") { screen ->
+            // Transición "fundido a través": la pantalla anterior sale antes de que entre la nueva, sin imágenes encimadas.
+            AnimatedContent(
+                targetState = nav.current,
+                transitionSpec = { fadeIn(tween(170, delayMillis = 90)) togetherWith fadeOut(tween(90)) },
+                label = "nav",
+            ) { screen ->
                 when (screen) {
                     Screen.Home -> HomeScreen(app, ui, nav)
                     is Screen.AppMenu -> AppMenuScreen(app, ui, nav, screen.pkg)
@@ -67,6 +77,7 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
                     Screen.Clock -> ClockScreen(app)
                     Screen.Controls -> ControlsScreen(app)
                     Screen.Wallpaper -> WallpaperScreen(app, nav)
+                    Screen.Dock -> DockScreen(app)
                     Screen.Blur -> BlurScreen(app)
                     Screen.Upload -> UploadScreen(app, nav)
                     Screen.Apps -> AppsScreen(app)
