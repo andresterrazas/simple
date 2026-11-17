@@ -567,7 +567,7 @@ private fun DockPreview(app: SimpleApp) {
                             .clip(shape).background(Color(v?.color ?: 0xFF2B2F3A.toInt()))
                     ) {
                         v?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-                        if (focused && look.outline) Box(Modifier.fillMaxSize().border(3.dp, Color.White, shape))
+                        if (focused && look.outline) Box(Modifier.fillMaxSize().border(3.dp, if (v?.light == true) Color(0xFF8B94A3) else Color.White, shape))
                     }
                     val labelAlpha = when (look.labels) {
                         com.andresterrazas.simple.data.LabelMode.FOCUS -> if (focused) 1f else 0f
@@ -623,7 +623,7 @@ fun DockScreen(app: SimpleApp) {
         }
         ToggleRow(
             "Contorno al enfocar", p.focusOutline, Modifier.restorableFocus(s, "outline"),
-            subtitle = "Se vuelve grisáceo en apps claras para que siempre se distinga",
+            subtitle = "Blanco, o gris en apps claras para que siempre se distinga",
         ) { app.store.update { it.copy(focusOutline = !it.focusOutline) } }
     }
 }

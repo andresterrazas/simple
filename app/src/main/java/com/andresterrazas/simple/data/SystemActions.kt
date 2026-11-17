@@ -34,6 +34,7 @@ object SystemActions {
     private fun toast(ctx: Context, msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
 
     private fun tryStart(ctx: Context, intent: Intent): Boolean = try {
+        com.andresterrazas.simple.home.DefaultHome.beginSystemSession()
         ctx.startActivity(Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         true
     } catch (e: ActivityNotFoundException) {
@@ -46,7 +47,12 @@ object SystemActions {
         val pm = ctx.packageManager
         val intent = runCatching { pm.getLeanbackLaunchIntentForPackage(pkg) }.getOrNull()
             ?: runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull()
-        val ok = intent != null && tryStart(ctx, intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED))
+        val ok = intent != null && try {
+            ctx.startActivity(Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED))
+            // Las apps de Amazon (Tienda, Silk, etc.) también viven fuera de simple: no interceptar sus pantallas.
+            if (pkg.startsWith("com.amazon.")) com.andresterrazas.simple.home.DefaultHome.beginSystemSession()
+            true
+        } catch (e: Exception) { false }
         if (!ok) toast(ctx, "No se pudo abrir la aplicación")
         return ok
     }

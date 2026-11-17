@@ -34,6 +34,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -52,15 +55,35 @@ private fun rememberVisual(app: SimpleApp, pkg: String, mode: IconMode): AppVisu
     return v
 }
 
-/** Fondo teñido con el color de la app, como en el menú de pulsación larga. */
+private const val TINT_ALPHA = 0.58f
+private const val SHADE_ALPHA = 0.10f
+
+/** Fondo teñido con el color de la app (sobre el fondo de pantalla normal, como en el inicio). */
 @Composable
-private fun TintedBackdrop(color: Int?) {
-    val backdrop = LocalBackdrop.current
+private fun TintedBackdrop(app: SimpleApp, color: Int?) {
+    val images by app.wallpapers.images.collectAsState()
     val tint by animateColorAsState(Color(color ?: 0xFF2B2F3A.toInt()), tween(300), label = "tint")
     Box(Modifier.fillMaxSize()) {
-        if (backdrop != null) Image(backdrop, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(tint.copy(alpha = 0.62f)))
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f)))
+        images?.let { Image(it.background, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        Box(Modifier.fillMaxSize().background(tint.copy(alpha = TINT_ALPHA)))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = SHADE_ALPHA)))
+    }
+}
+
+/**
+ * Versión teñida del fondo muy desenfocado: los paneles del menú la usan como "vidrio", así se ven
+ * cristalinos y del mismo tono que la app en lugar de mostrar el azul del fondo original.
+ */
+@Composable
+private fun rememberTintedGlass(color: Int?): ImageBitmap? {
+    val backdrop = LocalBackdrop.current ?: return null
+    return remember(backdrop, color) {
+        val src = backdrop.asAndroidBitmap().copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+        val c = android.graphics.Canvas(src)
+        val base = color ?: 0xFF2B2F3A.toInt()
+        c.drawColor(android.graphics.Color.argb((TINT_ALPHA * 255).toInt(), android.graphics.Color.red(base), android.graphics.Color.green(base), android.graphics.Color.blue(base)))
+        c.drawColor(android.graphics.Color.argb((SHADE_ALPHA * 255).toInt(), 0, 0, 0))
+        src.asImageBitmap()
     }
 }
 
@@ -112,9 +135,9 @@ fun AppMenuScreen(app: SimpleApp, ui: UiState, nav: Nav, pkg: String) {
     val scope = "menu:$pkg"
 
     Box(Modifier.fillMaxSize()) {
-        TintedBackdrop(visual?.color)
-        // Sobre el fondo teñido, los paneles usan solo un velo blanco (sin el recorte azul del fondo).
-        CompositionLocalProvider(LocalBackdrop provides null) {
+        val glass = rememberTintedGlass(visual?.color)
+        TintedBackdrop(app, visual?.color)
+        CompositionLocalProvider(LocalBackdrop provides glass) {
         Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(0.42f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 AppHero(app, pkg, mode, entry?.label ?: pkg)
@@ -162,8 +185,9 @@ fun IconPickerScreen(app: SimpleApp, nav: Nav, pkg: String) {
     val visual = rememberVisual(app, pkg, mode)
     val banner = rememberVisual(app, pkg, IconMode.BANNER)
     Box(Modifier.fillMaxSize()) {
-        TintedBackdrop(visual?.color)
-        CompositionLocalProvider(LocalBackdrop provides null) {
+        val glass = rememberTintedGlass(visual?.color)
+        TintedBackdrop(app, visual?.color)
+        CompositionLocalProvider(LocalBackdrop provides glass) {
         SettingsPage(title = "Cambiar ícono", subtitle = label, left = {
             Box(Modifier.size(232.dp, 130.dp).clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.15f))) {
                 visual?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High) }

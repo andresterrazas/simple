@@ -12,6 +12,8 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Shader
 import android.util.DisplayMetrics
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -101,19 +103,41 @@ class AppRepository(private val context: Context) {
         return runCatching { res.getDrawableForDensity(resId, DisplayMetrics.DENSITY_XXXHIGH, null) }.getOrNull()
     }
 
+    /**
+     * Versión en alta resolución solo si es una imagen simple (BitmapDrawable) con la misma proporción.
+     * Los banners compuestos (capas, márgenes) se cargan normal: en alta densidad se descuadran.
+     */
+    private fun preferHiRes(pkg: String, resId: Int, normal: Drawable?): Drawable? {
+        val hi = hiRes(pkg, resId) ?: return normal
+        if (normal == null) return if (hi is BitmapDrawable) hi else null
+        if (hi !is BitmapDrawable || normal !is BitmapDrawable) return normal
+        val nw = normal.intrinsicWidth; val nh = normal.intrinsicHeight
+        val hw = hi.bitmap.width; val hh = hi.bitmap.height
+        if (nw <= 0 || nh <= 0 || hw <= nw) return normal
+        val ratioDiff = kotlin.math.abs(hw.toFloat() / hh - nw.toFloat() / nh)
+        return if (ratioDiff < 0.03f) BitmapDrawable(context.resources, hi.bitmap) else normal
+    }
+
     private fun loadBanner(pkg: String): Drawable? {
         val leanback = runCatching { pm.getLeanbackLaunchIntentForPackage(pkg) }.getOrNull()
         val activity = leanback?.let { runCatching { pm.resolveActivity(it, 0)?.activityInfo }.getOrNull() }
         val app = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull()
-        val resId = activity?.banner?.takeIf { it != 0 } ?: app?.banner ?: 0
-        return hiRes(pkg, resId)
-            ?: activity?.let { runCatching { it.loadBanner(pm) }.getOrNull() }
+        val normal = activity?.let { runCatching { it.loadBanner(pm) }.getOrNull() }
             ?: app?.let { runCatching { it.loadBanner(pm) }.getOrNull() }
+        val resId = activity?.banner?.takeIf { it != 0 } ?: app?.banner ?: 0
+        return preferHiRes(pkg, resId, normal)
     }
 
     private fun loadIcon(pkg: String): Drawable? {
         val app = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull()
-        return hiRes(pkg, app?.icon ?: 0) ?: runCatching { pm.getApplicationIcon(pkg) }.getOrNull()
+        val normal = runCatching { pm.getApplicationIcon(pkg) }.getOrNull()
+        val hi = hiRes(pkg, app?.icon ?: 0)
+        // Los íconos adaptativos escalan bien en cualquier densidad; los demás, solo si son imagen simple.
+        return when {
+            android.os.Build.VERSION.SDK_INT >= 26 && hi is AdaptiveIconDrawable -> hi
+            hi is BitmapDrawable && normal is BitmapDrawable && hi.bitmap.width > normal.intrinsicWidth -> hi
+            else -> normal ?: hi
+        }
     }
 
     /** Escala el banner respetando su proporción (sin recortes ni deformaciones) para que quepa en la tarjeta. */
@@ -149,9 +173,16 @@ class AppRepository(private val context: Context) {
                 // para que parezca un banner. Si el ícono es transparente, va sobre un degradado de su color.
                 val bleed = edgeColor(iconBmp)
                 if (bleed != null) {
+                    // Ícono de fondo sólido: se recorta al contenido (logo) y se agranda sobre ese mismo color,
+                    // así un ícono con logo pequeño (Netflix, Prime Video) se ve como un banner limpio.
                     canvas.drawColor(bleed)
-                    val size = TILE_H
-                    canvas.drawBitmap(iconBmp, null, Rect((TILE_W - size) / 2, 0, (TILE_W + size) / 2, size), paint)
+                    val box = contentBounds(iconBmp, bleed)
+                    val maxW = TILE_W * 0.78f
+                    val maxH = TILE_H * 0.62f
+                    val sc = minOf(maxW / box.width(), maxH / box.height())
+                    val w = box.width() * sc; val h = box.height() * sc
+                    val l = (TILE_W - w) / 2f; val t = (TILE_H - h) / 2f
+                    canvas.drawBitmap(iconBmp, box, android.graphics.RectF(l, t, l + w, t + h), paint)
                 } else {
                     val top = shade(color, 0.75f)
                     val bottom = shade(color, 0.45f)
@@ -205,6 +236,21 @@ class AppRepository(private val context: Context) {
             val r = cs.map { Color.red(it) }; val g = cs.map { Color.green(it) }; val bl = cs.map { Color.blue(it) }
             val spread = (r.max() - r.min()) + (g.max() - g.min()) + (bl.max() - bl.min())
             return if (spread < 40) Color.rgb(r.average().toInt(), g.average().toInt(), bl.average().toInt()) else null
+        }
+
+        /** Rectángulo que contiene todo lo que no es el color de fondo (con un pequeño margen). */
+        fun contentBounds(b: Bitmap, bg: Int): Rect {
+            var l = b.width; var t = b.height; var r = -1; var btm = -1
+            val br = Color.red(bg); val bgG = Color.green(bg); val bb = Color.blue(bg)
+            for (y in 0 until b.height step 2) for (x in 0 until b.width step 2) {
+                val p = b.getPixel(x, y)
+                if (Color.alpha(p) < 40) continue
+                val d = kotlin.math.abs(Color.red(p) - br) + kotlin.math.abs(Color.green(p) - bgG) + kotlin.math.abs(Color.blue(p) - bb)
+                if (d > 60) { if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > btm) btm = y }
+            }
+            if (r < 0) return Rect(0, 0, b.width, b.height)
+            val pad = (b.width * 0.02f).toInt()
+            return Rect((l - pad).coerceAtLeast(0), (t - pad).coerceAtLeast(0), (r + pad + 2).coerceAtMost(b.width), (btm + pad + 2).coerceAtMost(b.height))
         }
 
         /** ¿La tarjeta es clara en sus bordes? (para cambiar el contorno de enfoque y que se distinga). */
