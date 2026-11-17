@@ -186,9 +186,9 @@ fun SettingRow(
     value: String? = null,
     subtitle: String? = null,
     danger: Boolean = false,
-    onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     trailing: (@Composable (focused: Boolean) -> Unit)? = null,
+    onClick: () -> Unit,
 ) {
     val style = LocalStyle.current
     var focused by remember { mutableStateOf(false) }
