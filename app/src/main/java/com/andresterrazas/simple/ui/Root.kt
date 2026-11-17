@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import com.andresterrazas.simple.SimpleApp
 import com.andresterrazas.simple.data.OverlayStyle
@@ -67,6 +69,11 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
                 transitionSpec = { fadeIn(tween(140, delayMillis = 60)) togetherWith fadeOut(tween(60)) },
                 label = "nav",
             ) { screen ->
+                // Los menús usan una escala más compacta (estilo ChillHub); el inicio respeta el tamaño del dock.
+                val base = LocalDensity.current
+                val density = if (screen == Screen.Home) base
+                else Density(base.density * prefs.menuScale.factor, base.fontScale)
+                CompositionLocalProvider(LocalDensity provides density) {
                 when (screen) {
                     Screen.Home -> HomeScreen(app, ui, nav)
                     is Screen.AppMenu -> AppMenuScreen(app, ui, nav, screen.pkg)
@@ -84,6 +91,7 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
                     Screen.Apps -> AppsScreen(app)
                     Screen.System -> SystemScreen()
                     Screen.Diagnostics -> DiagnosticsScreen(app)
+                }
                 }
             }
         }

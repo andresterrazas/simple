@@ -213,14 +213,14 @@ fun SettingRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp)
+            .padding(vertical = 4.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .glass(RoundedCornerShape(26.dp), bg)
+            .glass(RoundedCornerShape(50), bg)
             .onFocusChanged { focused = it.isFocused }
             .dpadActions(onClick, onLongClick)
             .focusable()
-            .heightIn(min = 54.dp)
-            .padding(horizontal = 20.dp, vertical = 11.dp),
+            .heightIn(min = 50.dp)
+            .padding(horizontal = 22.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
@@ -322,11 +322,11 @@ fun SettingsPage(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Row(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(0.42f).fillMaxHeight().padding(start = 40.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(0.44f).fillMaxHeight().padding(start = 56.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 left()
                 Spacer(Modifier.size(18.dp))
-                BasicText(title, style = ts(38.sp, FontWeight.Bold))
+                BasicText(title, style = ts(40.sp, FontWeight.Bold))
                 if (subtitle != null) {
                     BasicText(subtitle, style = ts(16.sp, FontWeight.Medium, Color.White.copy(alpha = 0.8f)), modifier = Modifier.padding(top = 4.dp))
                 }
@@ -337,7 +337,7 @@ fun SettingsPage(
             Column(
                 Modifier.weight(0.58f).fillMaxHeight()
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 8.dp, end = 52.dp, top = 40.dp, bottom = 48.dp),
+                    .padding(start = 24.dp, end = 72.dp, top = 56.dp, bottom = 64.dp),
                 verticalArrangement = Arrangement.Top,
             ) {
                 content()

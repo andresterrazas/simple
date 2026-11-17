@@ -107,6 +107,10 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
         SettingRow("Reloj", Modifier.restorableFocus(s, "clock"), icon = Icons.Clock, value = p.clockMode.label) { nav.push(Screen.Clock) }
         SettingRow("Dock", Modifier.restorableFocus(s, "dock"), icon = Icons.Dock, subtitle = "Opacidad, tamaño, forma y nombres") { nav.push(Screen.Dock) }
         SettingRow("Controles del encabezado", Modifier.restorableFocus(s, "controls"), icon = Icons.Sliders) { nav.push(Screen.Controls) }
+        SettingRow("Tamaño de los menús", Modifier.restorableFocus(s, "scale"), icon = Icons.Display, value = p.menuScale.label) {
+            val all = com.andresterrazas.simple.data.MenuScale.entries
+            app.store.update { it.copy(menuScale = all[(all.indexOf(it.menuScale) + 1) % all.size]) }
+        }
         SettingRow("Fondo", Modifier.restorableFocus(s, "wallpaper"), icon = Icons.ImageIc) { nav.push(Screen.Wallpaper) }
 
         SectionLabel("Gestión")

@@ -6,9 +6,12 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import com.andresterrazas.simple.MainActivity
 import com.andresterrazas.simple.SimpleApp
 import com.andresterrazas.simple.data.InterceptMode
@@ -93,6 +96,9 @@ object DefaultHome {
     private fun inSession(): Boolean =
         sessionAt != 0L && SystemClock.uptimeMillis() - sessionAt < 30 * 60_000L
 
+    fun sessionActive() = inSession()
+    fun sessionSettled() = inSession() && SystemClock.uptimeMillis() - sessionAt > 1_200L
+
     /** Una app normal o simple pasó al frente: la sesión terminó. */
     fun onForeground(pkg: String, ownPkg: String) {
         if (!inSession()) return
@@ -129,9 +135,64 @@ object DefaultHome {
 
 class HomeService : AccessibilityService() {
     private var lastLaunch = 0L
+    private val handler = Handler(Looper.getMainLooper())
+    private var polling = false
 
     override fun onServiceConnected() {
         DefaultHome.running = true
+    }
+
+    private fun mode() = (application as SimpleApp).store.state.value.intercept
+
+    private fun launchSimple(reason: String) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastLaunch < 700) return
+        lastLaunch = now
+        DefaultHome.log("→ simple ($reason)")
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            .putExtra(MainActivity.EXTRA_FROM_HOME, true)
+        runCatching { startActivity(intent) }
+    }
+
+    /**
+     * Revisa el contenido de la pantalla de Amazon al frente: si muestra su inicio (filas como
+     * "Mis apps y canales" o "Patrocinado"), es el inicio y no los Ajustes ni la red.
+     */
+    private fun amazonHomeVisible(): Boolean {
+        val root = runCatching { rootInActiveWindow }.getOrNull() ?: return false
+        if (root.packageName?.toString() != DefaultHome.AMAZON_LAUNCHER) return false
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 700) {
+            val n = queue.removeFirst()
+            visited++
+            val text = (n.text?.toString() ?: n.contentDescription?.toString())?.lowercase()
+            if (text != null && HOME_MARKERS.any { it in text }) return true
+            for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
+        }
+        return false
+    }
+
+    /** Mientras una pantalla de Amazon abierta desde simple está al frente, se comprueba cada segundo si ya es su inicio. */
+    private val poll = object : Runnable {
+        override fun run() {
+            if (!DefaultHome.sessionActive() || SystemClock.uptimeMillis() < DefaultHome.pausedUntil) { polling = false; return }
+            if (DefaultHome.sessionSettled() && amazonHomeVisible()) {
+                DefaultHome.endSystemSession()
+                polling = false
+                launchSimple("inicio de Amazon detectado")
+                return
+            }
+            handler.postDelayed(this, 900)
+        }
+    }
+
+    private fun startPolling() {
+        if (polling) return
+        polling = true
+        handler.postDelayed(poll, 600)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -142,21 +203,22 @@ class HomeService : AccessibilityService() {
         DefaultHome.log("$pkg · ${cls.substringAfterLast('.')}${if (title.isNotBlank()) " · \"$title\"" else ""}")
         DefaultHome.onForeground(pkg, packageName)
         if (pkg != DefaultHome.AMAZON_LAUNCHER) return
-        val mode = (application as SimpleApp).store.state.value.intercept
-        if (!DefaultHome.shouldIntercept(cls, title, mode)) return
-        val now = SystemClock.uptimeMillis()
-        if (now - lastLaunch < 700) return
-        lastLaunch = now
-        val intent = Intent(this, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            .putExtra(MainActivity.EXTRA_FROM_HOME, true)
-        runCatching { startActivity(intent) }
+        if (DefaultHome.sessionActive()) startPolling()
+        if (DefaultHome.shouldIntercept(cls, title, mode())) launchSimple("ventana de inicio")
     }
 
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         DefaultHome.running = false
         super.onDestroy()
+    }
+
+    companion object {
+        private val HOME_MARKERS = listOf(
+            "mis apps y canales", "mis aplicaciones", "my apps", "your apps", "tus apps",
+            "patrocinado", "sponsored", "continuar viendo", "continue watching",
+        )
     }
 }

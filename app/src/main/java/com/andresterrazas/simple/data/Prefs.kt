@@ -84,6 +84,12 @@ enum class FocusZoom(val label: String, val scale: Float) {
     LARGE("Grande", 1.16f),
 }
 
+enum class MenuScale(val label: String, val factor: Float) {
+    COMPACT("Compacto", 0.76f),
+    NORMAL("Normal", 0.84f),
+    LARGE("Grande", 0.94f),
+}
+
 const val CONTROL_CUSTOM = "custom"
 const val CONTROL_SETTINGS = "settings"
 const val CONTROL_WIFI = "wifi"
@@ -114,6 +120,7 @@ data class Prefs(
     val labelMode: LabelMode = LabelMode.FOCUS,
     val focusZoom: FocusZoom = FocusZoom.NORMAL,
     val focusOutline: Boolean = true,
+    val menuScale: MenuScale = MenuScale.NORMAL,
 ) {
     fun iconMode(pkg: String): IconMode = iconModes[pkg] ?: IconMode.AUTO
 
@@ -221,6 +228,7 @@ class PrefsStore(context: Context) {
             labelMode = enumOr(sp.getString("labelMode", null), d.labelMode),
             focusZoom = enumOr(sp.getString("focusZoom", null), d.focusZoom),
             focusOutline = sp.getBoolean("focusOutline", d.focusOutline),
+            menuScale = enumOr(sp.getString("menuScale", null), d.menuScale),
         )
     }
 
@@ -247,6 +255,7 @@ class PrefsStore(context: Context) {
             .putString("labelMode", p.labelMode.name)
             .putString("focusZoom", p.focusZoom.name)
             .putBoolean("focusOutline", p.focusOutline)
+            .putString("menuScale", p.menuScale.name)
             .apply()
     }
 }
