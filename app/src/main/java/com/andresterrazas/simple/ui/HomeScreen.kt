@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.andresterrazas.simple.ui
 
@@ -41,7 +41,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -127,6 +130,12 @@ fun dockTint(p: Prefs, style: UiStyle): Color =
     if (style.dark) Color.Black.copy(alpha = (p.dockOpacity.alpha * 1.5f).coerceAtMost(0.7f))
     else Color.White.copy(alpha = p.dockOpacity.alpha)
 
+/** Evita que el foco desplace la pantalla mientras el dock está en su vista normal. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private object NoAutoScroll : androidx.compose.foundation.gestures.BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
+}
+
 @Composable
 fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     val prefs by app.store.state.collectAsState()
@@ -204,7 +213,12 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     }
 
     val scroll = rememberScrollState()
-    LaunchedEffect(gridVisible) { if (!gridVisible) scroll.animateScrollTo(0) }
+    // Con el dock en su vista normal, la pantalla nunca debe desplazarse: si algo la movió
+    // (por ejemplo, el foco al regresar de la cuadrícula), se devuelve al instante a su posición.
+    LaunchedEffect(gridVisible) {
+        if (!gridVisible) snapshotFlow { scroll.value }.collect { if (it != 0) scroll.scrollTo(0) }
+    }
+    val defaultBringIntoView = LocalBringIntoViewSpec.current
 
     val ctx = LocalContext.current
     fun openMenu(pkg: String) {
@@ -262,6 +276,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
         val recsVisible = recsShown
         val recsAlpha by animateFloatAsState(if (recsVisible) 1f else 0f, tween(260), label = "recs")
 
+        CompositionLocalProvider(LocalBringIntoViewSpec provides if (gridVisible) defaultBringIntoView else NoAutoScroll) {
         Column(
             Modifier.fillMaxSize().verticalScroll(scroll, enabled = gridVisible),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -346,6 +361,8 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                     }
                 }
             }
+        }
+
         }
 
         // Continuar viendo / sugerencias: encima del dock, alineado a su borde izquierdo.
