@@ -2,6 +2,9 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.1.2
+- Continuar viendo a todo lo ancho con desvanecido en las orillas en lugar de corte recto; la tarjeta enfocada se mantiene dentro de los márgenes del dock.
+
 ## v1.1.1
 - Corrige los menús desplegables (se cerraban al abrirse).
 - Continuar viendo: selector de estilo (Panorámica, Clásica optimizada, Imagen) y de tamaño, con vista previa.

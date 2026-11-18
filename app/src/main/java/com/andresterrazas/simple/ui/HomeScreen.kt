@@ -432,10 +432,10 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                 cardW = cardW,
                 cardH = cardH,
                 style = prefs.recStyle,
+                inset = (maxWidth - rowWidth) / 2 + PANEL_PAD,
                 modifier = Modifier
                     .padding(top = (dockTop - panelH - 16.dp).coerceAtLeast(headerTop + headerH))
-                    .padding(start = (maxWidth - rowWidth) / 2 + PANEL_PAD - CARD_BLEED)
-                    .width(rowWidth - PANEL_PAD + CARD_BLEED),
+                    .fillMaxWidth(),
                 requester = { rfr(it) },
                 onFocused = { memory2[0] = it },
                 upTarget = { headerTarget() },

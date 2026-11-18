@@ -116,6 +116,7 @@ internal fun ContinueRow(
     cardW: Dp,
     cardH: Dp,
     style: com.andresterrazas.simple.data.RecStyle = com.andresterrazas.simple.data.RecStyle.WIDE,
+    inset: Dp = CARD_BLEED,
     enabled: Boolean,
     requester: (String) -> FocusRequester,
     onFocused: (String) -> Unit,
@@ -125,10 +126,18 @@ internal fun ContinueRow(
     val ctx = LocalContext.current
     val apps = (ctx.applicationContext as SimpleApp).repo.apps.collectAsState().value
     Column {
-        BasicText(title, style = ts(15.sp, FontWeight.Bold).copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 8f)), modifier = Modifier.padding(start = CARD_BLEED + 4.dp, bottom = 4.dp))
+        BasicText(title, style = ts(15.sp, FontWeight.Bold).copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 8f)), modifier = Modifier.padding(start = inset + 4.dp, bottom = 4.dp))
+        // La fila ocupa todo el ancho de la pantalla: la primera tarjeta se alinea con el dock y las que
+        // quedan fuera de ese margen se desvanecen hacia la orilla en lugar de cortarse en seco.
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val keepIn = remember(inset, density) { KeepInside(with(density) { inset.toPx() }) }
+        CompositionLocalProvider(LocalBringIntoViewSpec provides keepIn) {
         Row(
-            // Margen interno: la tarjeta enfocada crece sin que el borde del desplazamiento la recorte.
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = CARD_BLEED, vertical = 8.dp).padding(end = 60.dp),
+            Modifier
+                .fillMaxWidth()
+                .edgeFade(inset)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = inset, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             recs.forEachIndexed { i, r ->
@@ -153,6 +162,43 @@ internal fun ContinueRow(
                 }
             }
         }
+        }
+    }
+}
+
+/** Desvanecido horizontal en las orillas: transparente en el borde de la pantalla, opaco al llegar al margen. */
+private fun Modifier.edgeFade(inset: Dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val w = size.width
+        if (w <= 0f) return@drawWithContent
+        val solid = ((inset.toPx() - 10.dp.toPx()) / w).coerceIn(0.01f, 0.45f)
+        drawRect(
+            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                0f to Color.Transparent,
+                solid to Color.Black,
+                1f - solid to Color.Black,
+                1f to Color.Transparent,
+            ),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+    }
+
+/** Mantiene la tarjeta enfocada dentro de los márgenes del dock (nunca en la zona desvanecida). */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private class KeepInside(private val insetPx: Float) : androidx.compose.foundation.gestures.BringIntoViewSpec {
+    override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> =
+        spring(dampingRatio = 1f, stiffness = 520f)
+
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val left = insetPx
+        val right = containerSize - insetPx
+        return when {
+            offset < left -> offset - left
+            offset + size > right -> offset + size - right
+            else -> 0f
+        }
     }
 }
 
@@ -176,6 +222,7 @@ internal fun RecsOverlay(
     cardW: Dp,
     cardH: Dp,
     style: com.andresterrazas.simple.data.RecStyle,
+    inset: Dp,
     modifier: Modifier,
     requester: (String) -> FocusRequester,
     onFocused: (String) -> Unit,
@@ -206,6 +253,7 @@ internal fun RecsOverlay(
                 cardW = cardW,
                 cardH = cardH,
                 style = style,
+                inset = inset,
                 enabled = true,
                 requester = requester,
                 onFocused = onFocused,
