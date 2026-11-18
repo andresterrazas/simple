@@ -680,6 +680,17 @@ fun RecsScreen(app: SimpleApp) {
         if (!DefaultHome.isFireTv) {
             InfoBlock("En Google TV, Google solo deja publicar en esta fila a apps certificadas (Netflix, Prime Video, Disney+, etc.); otras apps pueden no aparecer.")
         }
+        SectionLabel("Contenido detectado")
+        val apps by app.repo.apps.collectAsState()
+        InfoBlock(
+            if (recs.isEmpty()) "Nada todavía."
+            else recs.take(12).joinToString("\n") { r ->
+                val inDock = p.favorites.any { com.andresterrazas.simple.home.Recs.samePackage(it, r.pkg) }
+                val name = apps.firstOrNull { com.andresterrazas.simple.home.Recs.samePackage(it.pkg, r.pkg) }?.label ?: "app no instalada"
+                "• ${r.title} — $name (${r.pkg}) · ${r.source}${if (inDock) "" else " · no está en el dock"}"
+            },
+            mono = true,
+        )
         SectionLabel("Qué apps envían información")
         InfoBlock(if (seen.isEmpty()) "Nada todavía." else seen.joinToString("\n"), mono = true)
         InfoBlock("simple solo lee las sugerencias que las apps publican para el inicio de TV; no lee mensajes ni datos personales, y nada sale de tu Fire TV.")

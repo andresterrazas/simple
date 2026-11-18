@@ -180,7 +180,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     val appRecs = remember(recs, shownPkg, prefs.recsHidden, showRecs) {
         val pkg = shownPkg
         if (!showRecs || pkg == null || pkg in prefs.recsHidden) emptyList()
-        else recs.filter { it.pkg == pkg }.take(10)
+        else recs.filter { Recs.samePackage(it.pkg, pkg) }.take(10)
     }
     val recsShown = appRecs.isNotEmpty() && hasFavs && !expandedVisual
     fun recsTarget(): FocusRequester? {

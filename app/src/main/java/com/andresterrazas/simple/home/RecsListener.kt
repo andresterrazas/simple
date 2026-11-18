@@ -52,6 +52,22 @@ object Recs {
     }
 
     internal fun setWatchNext(list: List<Rec>) { fromWatchNext = list; merge() }
+
+    /**
+     * Algunas apps publican "Continuar viendo" con un paquete distinto al del ícono que se lanza
+     * (p. ej. Prime Video en Fire TV). Se agrupan para que la sección aparezca en la app correcta.
+     */
+    private val aliasGroups = listOf(
+        setOf("com.amazon.avod", "com.amazon.avod.thirdpartyclient", "com.amazon.firebat", "com.amazon.cloud9.kids"),
+        setOf("com.disney.disneyplus", "com.disney.disneyplus.prod"),
+        setOf("com.wbd.stream", "com.hbo.hbonow", "com.hbo.max.android.tv"),
+        setOf("com.apple.atve.amazon.appletv", "com.apple.atve.androidtv.appletv"),
+    )
+
+    fun samePackage(a: String, b: String): Boolean =
+        a == b || aliasGroups.any { a in it && b in it }
+
+    fun forApp(pkg: String): List<Rec> = _items.value.filter { samePackage(it.pkg, pkg) }
     private val seen = LinkedHashMap<String, String>()
 
     fun component(ctx: Context) = ComponentName(ctx, RecsListener::class.java)
