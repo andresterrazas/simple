@@ -77,7 +77,7 @@ fun IconUploadScreen(app: SimpleApp, nav: Nav, pkg: String) {
     }
 
     SettingsPage(title = "Imagen propia", subtitle = label, left = {
-        Box(Modifier.size(210.dp).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(12.dp)) {
+        Box(Modifier.size(210.dp).clip(Shapes.hero).background(Color.White).padding(12.dp)) {
             qr?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
         }
     }) {

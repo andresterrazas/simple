@@ -91,7 +91,7 @@ private fun rememberTintedGlass(color: Int?): ImageBitmap? {
 private fun AppHero(app: SimpleApp, pkg: String, mode: IconMode, label: String) {
     val visual = rememberVisual(app, pkg, mode)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(232.dp, 130.dp).clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.15f))) {
+        Box(Modifier.size(232.dp, 130.dp).clip(Shapes.hero).background(Color.White.copy(alpha = 0.15f))) {
             visual?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
         }
         BasicText(label, style = ts(30.sp, FontWeight.Bold), modifier = Modifier.padding(top = 16.dp))
@@ -194,7 +194,7 @@ fun IconPickerScreen(app: SimpleApp, nav: Nav, pkg: String) {
         TintedBackdrop(app, visual?.color)
         CompositionLocalProvider(LocalBackdrop provides glass) {
         SettingsPage(title = "Cambiar ícono", subtitle = listOf(label, visual?.source.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "), left = {
-            Box(Modifier.size(232.dp, 130.dp).clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.15f))) {
+            Box(Modifier.size(232.dp, 130.dp).clip(Shapes.hero).background(Color.White.copy(alpha = 0.15f))) {
                 visual?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High) }
             }
         }) {

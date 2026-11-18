@@ -29,9 +29,11 @@ class SimpleApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.andresterrazas.simple.diag.CrashLog.install(this)
         store = PrefsStore(this)
         repo = AppRepository(this)
         wallpapers = WallpaperEngine(this)
+        repo.loadCachedList()
         store.state.value.let { wallpapers.loadCached(it.wallpaper, it.blur) }
 
         scope.launch {

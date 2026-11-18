@@ -10,6 +10,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andresterrazas.simple.R
 
@@ -27,6 +28,14 @@ data class UiStyle(val dark: Boolean) {
     val focusedText: Color = Color(0xFF1E2230)
     val text: Color = Color.White
     val danger: Color = Color(0xFFFF6B5E)
+}
+
+/** Formas compartidas por todos los menús, para que todas las pantallas se vean iguales. */
+object Shapes {
+    val row = androidx.compose.foundation.shape.RoundedCornerShape(50)
+    val block = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
+    val hero = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    val thumb = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
 }
 
 val LocalStyle = staticCompositionLocalOf { UiStyle(false) }

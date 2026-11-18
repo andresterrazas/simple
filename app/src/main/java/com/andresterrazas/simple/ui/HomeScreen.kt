@@ -196,6 +196,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
         }
     }
     val recsShownState = remember { derivedStateOf { appRecsState.value.isNotEmpty() && dockOpen } }
+    LaunchedEffect(ui.focusTick) { hover.hover = null; hover.shown = null; memory2[0] = null }
     fun recsTarget(): FocusRequester? {
         val list = appRecsState.value
         val k = memory2[0]?.takeIf { m -> list.any { it.key == m } } ?: list.firstOrNull()?.key

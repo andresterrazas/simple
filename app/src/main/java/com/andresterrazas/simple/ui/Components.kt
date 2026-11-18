@@ -183,8 +183,8 @@ fun Modifier.restorableFocus(scope: String, id: String, default: Boolean = false
 fun SectionLabel(text: String) {
     BasicText(
         text,
-        style = ts(15.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.78f)),
-        modifier = Modifier.padding(start = 10.dp, top = 22.dp, bottom = 6.dp),
+        style = ts(14.sp, FontWeight.Bold, Color.White.copy(alpha = 0.72f)).copy(letterSpacing = 0.4.sp),
+        modifier = Modifier.padding(start = 22.dp, top = 24.dp, bottom = 6.dp),
     )
 }
 
@@ -215,7 +215,7 @@ fun SettingRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .glass(RoundedCornerShape(50), bg)
+            .glass(Shapes.row, bg)
             .onFocusChanged { focused = it.isFocused }
             .dpadActions(onClick, onLongClick)
             .focusable()
@@ -305,11 +305,11 @@ fun InfoBlock(text: String, mono: Boolean = false) {
     val style = LocalStyle.current
     BasicText(
         text,
-        style = if (mono) ts(13.sp, FontWeight.Medium).copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-        else ts(14.sp, FontWeight.Medium, Color.White.copy(alpha = 0.88f)),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
-            .glass(RoundedCornerShape(20.dp), style.panel)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+        style = if (mono) ts(12.sp, FontWeight.Medium, Color.White.copy(alpha = 0.9f)).copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, lineHeight = 18.sp)
+        else ts(14.sp, FontWeight.Medium, Color.White.copy(alpha = 0.85f)).copy(lineHeight = 20.sp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            .glass(Shapes.block, style.panel)
+            .padding(horizontal = 22.dp, vertical = 12.dp),
     )
 }
 

@@ -48,6 +48,26 @@ class AppRepository(private val context: Context) {
     val apps: StateFlow<List<AppEntry>> = _apps
     private val visuals = ConcurrentHashMap<String, AppVisual>()
 
+    private val appsFile: File get() = File(context.filesDir, "apps.tsv")
+
+    /** Lista de apps guardada: el dock aparece completo desde el primer cuadro, sin esperar al sistema. */
+    fun loadCachedList() {
+        runCatching {
+            if (!appsFile.exists() || _apps.value.isNotEmpty()) return
+            val list = appsFile.readLines().mapNotNull { line ->
+                val p = line.split('\t')
+                if (p.size < 3) null else AppEntry(p[0], p[1], p[2].toLongOrNull() ?: 0L)
+            }
+            if (list.isNotEmpty()) _apps.value = list
+        }
+    }
+
+    private fun saveList(list: List<AppEntry>) {
+        runCatching {
+            appsFile.writeText(list.joinToString("\n") { "${it.pkg}\t${it.label.replace('\t', ' ').replace('\n', ' ')}\t${it.installTime}" })
+        }
+    }
+
     suspend fun refresh() = withContext(Dispatchers.IO) {
         val result = LinkedHashMap<String, AppEntry>()
         fun collect(category: String) {
@@ -63,7 +83,11 @@ class AppRepository(private val context: Context) {
         }
         collect(Intent.CATEGORY_LEANBACK_LAUNCHER)
         collect(Intent.CATEGORY_LAUNCHER)
-        _apps.value = result.values.toList()
+        val fresh = result.values.toList()
+        if (fresh != _apps.value) {
+            _apps.value = fresh
+            saveList(fresh)
+        }
     }
 
     fun invalidate(pkg: String) {

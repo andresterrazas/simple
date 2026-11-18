@@ -176,6 +176,7 @@ class HomeService : AccessibilityService() {
         if (now - lastLaunch < 700) return
         lastLaunch = now
         DefaultHome.log("→ simple ($reason)")
+        com.andresterrazas.simple.diag.Perf.markHomeRequested()
         val intent = Intent(this, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
             .putExtra(MainActivity.EXTRA_FROM_HOME, true)

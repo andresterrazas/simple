@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -91,7 +92,7 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
     SettingsPage(title = "simple", subtitle = "Versión ${BuildConfig.VERSION_NAME}", left = {
         Image(
             painterResource(R.drawable.banner), null,
-            Modifier.size(232.dp, 130.dp).clip(RoundedCornerShape(26.dp)),
+            Modifier.size(232.dp, 130.dp).clip(Shapes.hero),
             contentScale = ContentScale.Crop,
         )
     }) {
@@ -238,15 +239,15 @@ private fun ManageRow(
     actions: @Composable () -> Unit,
 ) {
     val style = LocalStyle.current
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
-            Modifier.weight(1f).glass(RoundedCornerShape(24.dp), style.panel).padding(horizontal = 16.dp, vertical = 10.dp)
+            Modifier.weight(1f).heightIn(min = 50.dp).glass(Shapes.row, style.panel).padding(horizontal = 22.dp, vertical = 8.dp)
                 .graphicsLayer { alpha = if (dimmed) 0.55f else 1f },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             leading()
             Spacer(Modifier.width(14.dp))
-            BasicText(label, style = ts(17.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            BasicText(label, style = ts(17.sp, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         }
         Spacer(Modifier.width(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
@@ -281,7 +282,7 @@ fun ControlsScreen(app: SimpleApp) {
 @Composable
 private fun MiniTile(app: SimpleApp, e: AppEntry, mode: IconMode) {
     val v by produceState(app.repo.cached(e.pkg, mode), e.pkg, mode) { value = app.repo.loadVisual(e.pkg, mode) }
-    Box(Modifier.size(52.dp, 29.dp).clip(RoundedCornerShape(7.dp)).background(Color(v?.color ?: 0xFF2B2F3A.toInt()))) {
+    Box(Modifier.size(56.dp, 32.dp).clip(RoundedCornerShape(8.dp)).background(Color(v?.color ?: 0xFF2B2F3A.toInt()))) {
         v?.let { Image(it.tile, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
     }
 }
@@ -338,8 +339,8 @@ fun SystemScreen() {
 private fun WallpaperPreview(app: SimpleApp) {
     val images by app.wallpapers.images.collectAsState()
     Box(
-        Modifier.size(300.dp, 169.dp).clip(RoundedCornerShape(26.dp))
-            .border(2.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(26.dp))
+        Modifier.size(300.dp, 169.dp).clip(Shapes.hero)
+            .border(2.dp, Color.White.copy(alpha = 0.35f), Shapes.hero)
             .background(Color.Black.copy(alpha = 0.2f))
     ) {
         images?.let { Image(it.background, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
@@ -351,7 +352,7 @@ private fun Thumb(app: SimpleApp, id: String, selected: Boolean, modifier: Modif
     var focused by remember { mutableStateOf(false) }
     val bmp by produceState(null as androidx.compose.ui.graphics.ImageBitmap?, id) { value = app.wallpapers.thumbnail(id) }
     val scale by animateFloatAsState(if (focused) 1.08f else 1f, spring(dampingRatio = 0.7f, stiffness = 520f), label = "thumb")
-    val shape = RoundedCornerShape(18.dp)
+    val shape = Shapes.thumb
     Box(
         modifier
             .zIndex(if (focused) 1f else 0f)
@@ -461,7 +462,7 @@ fun UploadScreen(app: SimpleApp, nav: Nav) {
     }
 
     SettingsPage(title = "Subir foto", subtitle = "Desde tu celular", left = {
-        Box(Modifier.size(210.dp).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(12.dp)) {
+        Box(Modifier.size(210.dp).clip(Shapes.hero).background(Color.White).padding(12.dp)) {
             qr?.let { Image(it, null, Modifier.fillMaxSize()) }
         }
     }) {
@@ -495,6 +496,28 @@ fun DiagnosticsScreen(app: SimpleApp) {
                 "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.DISPLAY}\n" +
                 "simple ${BuildConfig.VERSION_NAME} · ${apps.size} apps detectadas"
         )
+        SectionLabel("Fluidez")
+        val perf by produceState(com.andresterrazas.simple.diag.Perf.summary()) {
+            while (true) { value = com.andresterrazas.simple.diag.Perf.summary(); delay(1000) }
+        }
+        InfoBlock(perf, mono = true)
+        SettingRow("Reiniciar medición de cuadros", Modifier.restorableFocus("diag", "perfreset"), icon = Icons.Refresh,
+            subtitle = "Luego navega un rato y vuelve a ver los números") {
+            com.andresterrazas.simple.diag.Perf.reset()
+        }
+
+        SectionLabel("Cierres inesperados")
+        var crashTick by remember { mutableIntStateOf(0) }
+        val crashes = remember(crashTick) { com.andresterrazas.simple.diag.CrashLog.entries() }
+        if (crashes.isEmpty()) {
+            InfoBlock("Ninguno registrado. 🎉")
+        } else {
+            crashes.forEach { InfoBlock(it.lines().take(8).joinToString("\n"), mono = true) }
+            SettingRow("Borrar registro", Modifier.restorableFocus("diag", "crashclear"), icon = Icons.Trash) {
+                com.andresterrazas.simple.diag.CrashLog.clear(); crashTick++
+            }
+        }
+
         SectionLabel("Inicio")
         InfoBlock(
             "Servicio habilitado: ${if (enabled) "sí" else "no"}\n" +
@@ -533,7 +556,7 @@ private fun DockPreview(app: SimpleApp) {
     val rowW = look.width.value * 3 + look.gap.value * 2 + 32f
     val scale = (300f / rowW).coerceAtMost(0.9f)
     Box(
-        Modifier.size(330.dp, 150.dp).clip(RoundedCornerShape(26.dp)).background(Color.Black.copy(alpha = 0.12f)),
+        Modifier.size(330.dp, 150.dp).clip(Shapes.hero).background(Color.Black.copy(alpha = 0.12f)),
         contentAlignment = Alignment.Center,
     ) {
         Row(

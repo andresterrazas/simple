@@ -2,6 +2,7 @@ package com.andresterrazas.simple
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.andresterrazas.simple.home.DefaultHome
@@ -17,6 +18,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as SimpleApp
+        // El fondo ya procesado se usa como fondo de la ventana: se ve desde el primer instante, sin negro.
+        app.wallpapers.images.value?.let { img ->
+            runCatching { window.setBackgroundDrawable(android.graphics.drawable.BitmapDrawable(resources, img.background.asAndroidBitmap())) }
+        }
+        com.andresterrazas.simple.diag.Perf.onActivityCreated()
+        com.andresterrazas.simple.diag.Perf.onShownFromHome()
         setContent { SimpleRoot(app, ui, nav) }
         askWatchNextOnce()
     }
@@ -24,20 +31,24 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // Botón Inicio (o el servicio) con simple ya abierto: volver a la pantalla principal.
+        // Inicio estando dentro de simple: siempre de vuelta al dock en su vista normal, desde cualquier menú.
         nav.reset()
         FocusMemory.map.clear()
         ui.reset()
+        com.andresterrazas.simple.diag.Perf.onShownFromHome()
     }
 
     override fun onResume() {
         super.onResume()
         DefaultHome.foreground = true
+        com.andresterrazas.simple.diag.Perf.attach(this)
         (application as SimpleApp).refreshApps(250)
         (application as SimpleApp).refreshWatchNext()
     }
 
     override fun onPause() {
         DefaultHome.foreground = false
+        com.andresterrazas.simple.diag.Perf.detach(this)
         super.onPause()
     }
 
