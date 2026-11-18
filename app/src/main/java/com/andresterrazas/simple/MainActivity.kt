@@ -18,6 +18,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val app = application as SimpleApp
         setContent { SimpleRoot(app, ui, nav) }
+        askWatchNextOnce()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -32,11 +33,32 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         DefaultHome.foreground = true
         (application as SimpleApp).refreshApps(250)
+        (application as SimpleApp).refreshWatchNext()
     }
 
     override fun onPause() {
         DefaultHome.foreground = false
         super.onPause()
+    }
+
+    /** En Android TV pide una sola vez el permiso para leer "Continuar viendo". */
+    private fun askWatchNextOnce() {
+        val wn = com.andresterrazas.simple.home.WatchNext
+        if (!wn.available(this) || wn.granted(this)) return
+        val sp = getSharedPreferences("simple", MODE_PRIVATE)
+        if (sp.getBoolean("askedTvListings", false)) return
+        sp.edit().putBoolean("askedTvListings", true).apply()
+        requestWatchNextPermission()
+    }
+
+    fun requestWatchNextPermission() {
+        runCatching { requestPermissions(arrayOf(com.andresterrazas.simple.home.WatchNext.PERMISSION), 77) }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 77) (application as SimpleApp).refreshWatchNext()
     }
 
     companion object {

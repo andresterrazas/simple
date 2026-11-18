@@ -27,6 +27,11 @@ data class Rec(
     val intent: PendingIntent?,
     val time: Long,
     val progress: Float?,
+    /** Intent para abrir directo el contenido (Watch Next de Android TV). */
+    val launch: android.content.Intent? = null,
+    /** Imagen remota o local que se carga bajo demanda. */
+    val imageUri: String? = null,
+    val source: String = "notificación",
 )
 
 /**
@@ -36,6 +41,17 @@ data class Rec(
 object Recs {
     private val _items = MutableStateFlow<List<Rec>>(emptyList())
     val items: StateFlow<List<Rec>> = _items
+    @Volatile private var fromNotifications: List<Rec> = emptyList()
+    @Volatile private var fromWatchNext: List<Rec> = emptyList()
+
+    private fun merge() {
+        _items.value = (fromWatchNext + fromNotifications)
+            .sortedByDescending { it.time }
+            .distinctBy { it.pkg + "|" + it.title.lowercase() }
+            .take(40)
+    }
+
+    internal fun setWatchNext(list: List<Rec>) { fromWatchNext = list; merge() }
     private val seen = LinkedHashMap<String, String>()
 
     fun component(ctx: Context) = ComponentName(ctx, RecsListener::class.java)
@@ -68,8 +84,13 @@ object Recs {
         while (seen.size > 14) seen.remove(seen.keys.first())
     }
 
-    internal fun set(list: List<Rec>) {
-        _items.value = list.sortedByDescending { it.time }.distinctBy { it.pkg + "|" + it.title }.take(14)
+    internal fun set(list: List<Rec>) { fromNotifications = list; merge() }
+
+    /** Abre el contenido: primero el intent de Watch Next, luego el de la notificación y al final la app. */
+    fun open(ctx: Context, r: Rec) {
+        val ok = r.launch?.let { runCatching { ctx.startActivity(android.content.Intent(it).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false) } == true ||
+            r.intent?.let { runCatching { it.send(); true }.getOrDefault(false) } == true
+        if (!ok) com.andresterrazas.simple.data.SystemActions.launchApp(ctx, r.pkg)
     }
 }
 

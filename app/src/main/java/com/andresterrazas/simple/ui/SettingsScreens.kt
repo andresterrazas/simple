@@ -632,13 +632,31 @@ fun RecsScreen(app: SimpleApp) {
     val s = "recs"
     SettingsPage(title = "Continuar viendo", subtitle = "Sugerencias de tus apps", left = { BigIcon(Icons.Tv) }) {
         ToggleRow("Mostrar en el inicio", p.showRecs, Modifier.restorableFocus(s, "show", default = true),
-            subtitle = "Fila sobre el dock con lo que tus apps sugieren o dejaste a medias") {
+            subtitle = "Al posarte en una app de streaming, muestra lo que dejaste a medias") {
             app.store.update { it.copy(showRecs = !it.showRecs) }
         }
-        SectionLabel("Estado")
+        SectionLabel("Android TV / Google TV · fila del sistema")
+        val wn = com.andresterrazas.simple.home.WatchNext
+        val wnAvail = remember { wn.available(ctx) }
+        val wnGranted by produceState(wn.granted(ctx)) { while (true) { value = wn.granted(ctx); delay(1000) } }
+        if (!wnAvail) {
+            InfoBlock("Este dispositivo no tiene la fila \"Continuar viendo\" del sistema (normal en Fire TV). Se usan las sugerencias por notificación de abajo.")
+        } else if (wnGranted) {
+            InfoBlock("Permiso concedido · ${wn.lastCount} elementos leídos" + (wn.lastError?.let { "\nError: $it" } ?: ""))
+        } else {
+            SettingRow("Permitir leer Continuar viendo", Modifier.restorableFocus(s, "wn"), icon = Icons.Check,
+                subtitle = "Tu TV pedirá confirmar una sola vez") {
+                (ctx as? com.andresterrazas.simple.MainActivity)?.requestWatchNextPermission()
+            }
+            InfoBlock("Si no aparece el diálogo, por ADB:")
+            InfoBlock(wn.adbCommand(ctx), mono = true)
+        }
+        InfoBlock("La sección aparece al posarte en una app de streaming del dock que tenga algo a medias. YouTube está excluido por defecto; cambia cualquier app desde su menú (mantén OK) › Continuar viendo.")
+
+        SectionLabel("Fire TV · sugerencias por notificación")
         InfoBlock(
-            "Acceso a sugerencias: ${if (enabled) "activo" else "no activo"}\n" +
-                "Tarjetas disponibles ahora: ${recs.size}" +
+            "Acceso a notificaciones: ${if (enabled) "activo" else "no activo"}\n" +
+                "Tarjetas disponibles (todas las fuentes): ${recs.size}" +
                 if (enabled && recs.isEmpty()) "\nAbre y usa algunas apps (YouTube, Prime Video, Plex…); las que publiquen sugerencias aparecerán aquí." else ""
         )
         if (!enabled) {
@@ -660,7 +678,7 @@ fun RecsScreen(app: SimpleApp) {
             }
         }
         if (!DefaultHome.isFireTv) {
-            InfoBlock("En Android TV y Google TV la mayoría de las apps envían su \"seguir viendo\" directo a Google, no al sistema, así que esta fila puede quedar vacía en esta TV.")
+            InfoBlock("En Google TV, Google solo deja publicar en esta fila a apps certificadas (Netflix, Prime Video, Disney+, etc.); otras apps pueden no aparecer.")
         }
         SectionLabel("Qué apps envían información")
         InfoBlock(if (seen.isEmpty()) "Nada todavía." else seen.joinToString("\n"), mono = true)

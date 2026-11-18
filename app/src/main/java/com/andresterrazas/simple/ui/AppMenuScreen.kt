@@ -167,6 +167,11 @@ fun AppMenuScreen(app: SimpleApp, ui: UiState, nav: Nav, pkg: String) {
                     }
                 }
                 SettingRow("Cambiar ícono", Modifier.restorableFocus(scope, "icon"), icon = Icons.Brush, value = mode.label) { nav.push(Screen.IconPicker(pkg)) }
+                val recsOn = pkg !in prefs.recsHidden
+                ToggleRow("Continuar viendo", recsOn, Modifier.restorableFocus(scope, "recs"),
+                    subtitle = "Mostrar lo que dejaste a medias al posarte en esta app") {
+                    app.store.update { it.copy(recsHidden = if (recsOn) it.recsHidden + pkg else it.recsHidden - pkg) }
+                }
                 SettingRow("Información", Modifier.restorableFocus(scope, "info"), icon = Icons.Info) { SystemActions.openAppInfo(ctx, pkg) }
                 SettingRow("Tienda de aplicaciones", Modifier.restorableFocus(scope, "store"), icon = Icons.Store) { SystemActions.openInStore(ctx, pkg) }
                 SettingRow("Desinstalar", Modifier.restorableFocus(scope, "uninstall"), icon = Icons.Trash, danger = true) { SystemActions.uninstall(ctx, pkg) }

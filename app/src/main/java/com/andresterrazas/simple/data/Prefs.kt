@@ -91,6 +91,12 @@ enum class MenuScale(val label: String, val factor: Float) {
     LARGE("Grande", 0.94f),
 }
 
+/** Apps que no muestran "Continuar viendo" por defecto (sus sugerencias son infinitas, no contenido a medias). */
+val DEFAULT_RECS_HIDDEN = setOf(
+    "com.google.android.youtube.tv", "com.amazon.firetv.youtube", "com.google.android.youtube.tvmusic",
+    "com.google.android.youtube.tvkids", "com.amazon.firetv.youtube.tv", "com.google.android.youtube.tvunplugged",
+)
+
 const val CONTROL_CUSTOM = "custom"
 const val CONTROL_SETTINGS = "settings"
 const val CONTROL_WIFI = "wifi"
@@ -124,6 +130,7 @@ data class Prefs(
     val menuScale: MenuScale = MenuScale.NORMAL,
     val peekRow: Boolean = true,
     val showRecs: Boolean = true,
+    val recsHidden: Set<String> = DEFAULT_RECS_HIDDEN,
 ) {
     fun iconMode(pkg: String): IconMode = iconModes[pkg] ?: IconMode.AUTO
 
@@ -234,6 +241,7 @@ class PrefsStore(context: Context) {
             menuScale = enumOr(sp.getString("menuScale", null), d.menuScale),
             peekRow = sp.getBoolean("peekRow", d.peekRow),
             showRecs = sp.getBoolean("showRecs", d.showRecs),
+            recsHidden = if (sp.contains("recsHidden")) list("recsHidden").toSet() else d.recsHidden,
         )
     }
 
@@ -263,6 +271,7 @@ class PrefsStore(context: Context) {
             .putString("menuScale", p.menuScale.name)
             .putBoolean("peekRow", p.peekRow)
             .putBoolean("showRecs", p.showRecs)
+            .putString("recsHidden", p.recsHidden.joinToString("|"))
             .apply()
     }
 }

@@ -48,6 +48,17 @@ class SimpleApp : Application() {
         com.andresterrazas.simple.home.Recs.enableViaSecure(this)
     }
 
+    private var wnJob: Job? = null
+
+    /** Relee la fila Watch Next del sistema (Android TV); agrupa cambios seguidos. */
+    fun refreshWatchNext() {
+        wnJob?.cancel()
+        wnJob = scope.launch {
+            delay(300)
+            com.andresterrazas.simple.home.WatchNext.refresh(this@SimpleApp)
+        }
+    }
+
     fun refreshApps(delayMs: Long = 0) {
         refreshJob?.cancel()
         refreshJob = scope.launch {
