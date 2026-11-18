@@ -139,18 +139,25 @@ fun Modifier.glass(shape: Shape, tint: Color, alpha: Float = 1f): Modifier = com
             if (backdrop != null && root.width > 0 && root.height > 0) {
                 val sx = backdrop.width / root.width.toFloat()
                 val sy = backdrop.height / root.height.toFloat()
-                val srcX = (pos.x * sx).roundToInt().coerceIn(0, backdrop.width - 1)
-                val srcY = (pos.y * sy).roundToInt().coerceIn(0, backdrop.height - 1)
-                val srcW = (size.width * sx).roundToInt().coerceIn(1, backdrop.width - srcX)
-                val srcH = (size.height * sy).roundToInt().coerceIn(1, backdrop.height - srcY)
-                drawImage(
-                    image = backdrop,
-                    srcOffset = IntOffset(srcX, srcY),
-                    srcSize = IntSize(srcW, srcH),
-                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                    alpha = alpha,
-                    filterQuality = FilterQuality.Low,
-                )
+                // Parte del elemento que cae dentro de la pantalla (puede estar a medio salir al desplazarse).
+                val left = maxOf(pos.x, 0f); val top = maxOf(pos.y, 0f)
+                val right = minOf(pos.x + size.width, root.width.toFloat())
+                val bottom = minOf(pos.y + size.height, root.height.toFloat())
+                if (right > left && bottom > top) {
+                    val srcX = (left * sx).roundToInt().coerceIn(0, backdrop.width - 1)
+                    val srcY = (top * sy).roundToInt().coerceIn(0, backdrop.height - 1)
+                    val srcW = ((right - left) * sx).roundToInt().coerceIn(1, backdrop.width - srcX)
+                    val srcH = ((bottom - top) * sy).roundToInt().coerceIn(1, backdrop.height - srcY)
+                    drawImage(
+                        image = backdrop,
+                        srcOffset = IntOffset(srcX, srcY),
+                        srcSize = IntSize(srcW, srcH),
+                        dstOffset = IntOffset((left - pos.x).roundToInt(), (top - pos.y).roundToInt()),
+                        dstSize = IntSize((right - left).roundToInt(), (bottom - top).roundToInt()),
+                        alpha = alpha,
+                        filterQuality = FilterQuality.Low,
+                    )
+                }
             }
             drawRect(tint.copy(alpha = tint.alpha * alpha))
         }
@@ -277,6 +284,118 @@ fun ToggleRow(title: String, checked: Boolean, modifier: Modifier = Modifier, su
     })
 }
 
+/**
+ * Menú desplegable para ajustes con varias opciones: una sola fila con el valor actual que, al
+ * presionar OK, despliega las opciones debajo. Elegir una (o presionar Atrás) lo vuelve a plegar y
+ * regresa el foco a la fila. Ocupa mucho menos espacio que una lista de botones de opción.
+ */
+@Composable
+fun <T> DropdownRow(
+    title: String,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    scope: String,
+    id: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    subtitle: String? = null,
+    default: Boolean = false,
+    optionSubtitle: ((T) -> String?)? = null,
+    onSelect: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val header = remember { FocusRequester() }
+    val selectedFr = remember { FocusRequester() }
+    val rot by animateFloatAsState(if (expanded) 180f else 0f, spring(dampingRatio = 0.8f, stiffness = 500f), label = "chev")
+    LaunchedEffect(expanded) {
+        if (expanded) { withFrameNanos { }; runCatching { selectedFr.requestFocus() } }
+    }
+    fun collapse() {
+        expanded = false
+        runCatching { header.requestFocus() }
+    }
+    Column(
+        modifier
+            .onFocusChanged { if (!it.hasFocus && expanded) expanded = false }
+            .onPreviewKeyEvent { ev ->
+                if (expanded && ev.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK) {
+                    if (ev.type == KeyEventType.KeyUp) collapse()
+                    true
+                } else false
+            },
+    ) {
+        SettingRow(
+            title, Modifier.restorableFocus(scope, id, default).focusRequester(header),
+            icon = icon, subtitle = subtitle, value = label(selected),
+            trailing = { focused ->
+                Spacer(Modifier.width(10.dp))
+                Icon(Icons.ChevronDown, if (focused) LocalStyle.current.focusedText else Color.White.copy(alpha = 0.8f), 20.dp,
+                    Modifier.graphicsLayer { rotationZ = rot })
+            },
+        ) { expanded = !expanded }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = expanded,
+            enter = androidx.compose.animation.expandVertically(spring(dampingRatio = 0.9f, stiffness = 700f)) + androidx.compose.animation.fadeIn(tween(160)),
+            exit = androidx.compose.animation.shrinkVertically(spring(dampingRatio = 1f, stiffness = 900f)) + androidx.compose.animation.fadeOut(tween(100)),
+        ) {
+            Column(Modifier.padding(start = 28.dp, top = 2.dp, bottom = 6.dp)) {
+                options.forEach { o ->
+                    val isSel = o == selected
+                    OptionRow(
+                        label(o), isSel, optionSubtitle?.invoke(o),
+                        Modifier
+                            .then(if (isSel) Modifier.focusRequester(selectedFr) else Modifier)
+                            .onFocusChanged { if (it.isFocused) FocusMemory.map[scope] = id },
+                    ) {
+                        onSelect(o)
+                        collapse()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Opción dentro de un desplegable: más compacta que una fila normal, con una palomita si está elegida. */
+@Composable
+private fun OptionRow(title: String, selected: Boolean, subtitle: String?, modifier: Modifier, onClick: () -> Unit) {
+    val style = LocalStyle.current
+    var focused by remember { mutableStateOf(false) }
+    val bg by animateColorAsState(
+        when {
+            focused -> style.focusedFill
+            selected -> Color.White.copy(alpha = 0.14f)
+            else -> Color.White.copy(alpha = 0.06f)
+        }, tween(140), label = "optBg",
+    )
+    val fg = if (focused) style.focusedText else Color.White
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .clip(Shapes.row)
+            .background(bg)
+            .onFocusChanged { focused = it.isFocused }
+            .dpadActions(onClick)
+            .focusable()
+            .heightIn(min = 42.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            BasicText(title, style = ts(15.sp, if (selected) FontWeight.Bold else FontWeight.SemiBold, fg), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle != null) {
+                BasicText(subtitle, style = ts(12.sp, FontWeight.Medium, fg.copy(alpha = 0.72f)), maxLines = 2, modifier = Modifier.padding(top = 1.dp))
+            }
+        }
+        if (selected) {
+            Spacer(Modifier.width(10.dp))
+            Icon(Icons.Check, fg, 18.dp)
+        }
+    }
+}
+
 /** Botón circular (ojo, flechas, ajustes del encabezado). */
 @Composable
 fun CircleButton(icon: ImageVector, modifier: Modifier = Modifier, size: Int = 44, iconTint: Color? = null, onClick: () -> Unit) {
@@ -332,11 +451,12 @@ fun SettingsPage(
                 }
             }
         }
-        val pivot = remember { PivotScroll() }
+        val scroll = rememberScrollState()
+        val pivot = remember(scroll) { PivotScroll(scroll) }
         CompositionLocalProvider(LocalBringIntoViewSpec provides pivot) {
             Column(
                 Modifier.weight(0.58f).fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scroll)
                     .padding(start = 24.dp, end = 72.dp, top = 56.dp, bottom = 64.dp),
                 verticalArrangement = Arrangement.Top,
             ) {
@@ -347,25 +467,39 @@ fun SettingsPage(
 }
 
 /**
- * Mantiene el elemento enfocado cerca del centro de la lista, como en la interfaz de un TV.
+ * Mantiene el elemento enfocado dentro de una zona cómoda de la lista, como en la interfaz de un TV.
  * Al entrar a una pantalla el primer salto es instantáneo, para que no se vea la lista "corriendo" a su lugar.
+ *
+ * La distancia siempre se limita a lo que de verdad se puede desplazar: pedir más (por ejemplo, centrar
+ * el último elemento) dejaba la animación persiguiendo una posición imposible y la lista se "trababa".
+ * Cerca de los extremos se va hasta el tope, para que los títulos de sección no queden a medias.
  */
 @OptIn(ExperimentalFoundationApi::class)
-private class PivotScroll : BringIntoViewSpec {
+private class PivotScroll(private val scroll: androidx.compose.foundation.ScrollState) : BringIntoViewSpec {
     private val createdAt = android.os.SystemClock.uptimeMillis()
     override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float>
         get() = if (android.os.SystemClock.uptimeMillis() - createdAt < 450) androidx.compose.animation.core.snap()
-        else androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 420f)
+        else androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 520f)
 
-    // Solo desplaza cuando el elemento sale de la zona cómoda (25 %–72 % de la altura): menos movimiento en pantalla.
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val top = containerSize * 0.25f
         val bottom = containerSize * 0.72f
-        return when {
+        var d = when {
+            size > bottom - top -> offset - top // más alto que la zona: alinear arriba
             offset < top -> offset - top
             offset + size > bottom -> offset + size - bottom
             else -> 0f
         }
+        val cur = scroll.value.toFloat()
+        val max = scroll.maxValue.toFloat()
+        if (scroll.maxValue <= 0 || scroll.maxValue == Int.MAX_VALUE) return 0f
+        val target = cur + d
+        // Cerca de un extremo (y solo en la dirección del movimiento): ir completo al tope o al fondo,
+        // siempre que el elemento enfocado siga entero en pantalla.
+        if (d < 0f && target < top && offset + cur + size <= containerSize) d = -cur
+        else if (d > 0f && target > max - (containerSize - bottom) && offset - (max - cur) >= 0f) d = max - cur
+        val res = d.coerceIn(-cur, max - cur)
+        return if (kotlin.math.abs(res) < 1f) 0f else res
     }
 }
 

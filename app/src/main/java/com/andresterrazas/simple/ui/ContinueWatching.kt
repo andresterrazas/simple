@@ -64,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -211,10 +212,25 @@ internal fun RecsOverlay(
     }
 }
 
+/** Línea secundaria corta: "T5 E4 · faltan 23 min", o el subtítulo si la app no da episodio. */
+internal fun recMeta(rec: com.andresterrazas.simple.home.Rec): String {
+    val mins = (rec.remainingMs / 60_000L).toInt()
+    val left = when {
+        mins <= 0 -> ""
+        mins < 60 -> "faltan $mins min"
+        else -> "faltan ${mins / 60} h ${mins % 60} min"
+    }
+    return when {
+        rec.episode.isNotBlank() -> listOf(rec.episode, left).filter { it.isNotBlank() }.joinToString(" · ")
+        left.isNotBlank() -> left.replaceFirstChar { it.uppercase() }
+        else -> rec.subtitle
+    }
+}
+
 /**
- * Tarjeta minimalista: miniatura a la izquierda; app, título, episodio y progreso a la derecha.
- * Vidrio más oscuro que el resto para que el texto se lea sobre fondos claros; al enfocarla se
- * vuelve blanca con texto oscuro, igual que las filas de los menús.
+ * Tarjeta de Continuar viendo: la imagen ocupa el lado derecho y se funde con el vidrio, el texto
+ * usa todo el ancho de la izquierda y la barra de progreso corre por la base de la tarjeta, así que
+ * siempre se ve aunque la serie traiga más información que una película.
  */
 @Composable
 internal fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: String, width: Dp, height: Dp, modifier: Modifier, onClick: () -> Unit) {
@@ -222,46 +238,65 @@ internal fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: Str
     val style = LocalStyle.current
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) 1.06f else 1f, spring(dampingRatio = 0.82f, stiffness = 600f), label = "cardScale")
-    val bg by androidx.compose.animation.animateColorAsState(
-        if (focused) style.focusedFill else Color.Black.copy(alpha = if (style.dark) 0.42f else 0.26f), tween(160), label = "cardBg",
-    )
+    val base = Color.Black.copy(alpha = if (style.dark) 0.42f else 0.26f)
+    val bg by androidx.compose.animation.animateColorAsState(if (focused) style.focusedFill else base, tween(160), label = "cardBg")
     val fg = if (focused) style.focusedText else Color.White
     val image by produceState(rec.image ?: com.andresterrazas.simple.home.RecImages.cached(rec.imageUri), rec.key) {
         if (value == null && rec.imageUri != null) value = com.andresterrazas.simple.home.RecImages.load(ctx, rec.imageUri)
     }
     val shape = RoundedCornerShape(18.dp)
-    val pad = 8.dp
-    val thumbH = height - pad * 2
-    val thumbW = thumbH * 16f / 9f
-    Row(
+    val imgW = minOf(height * 16f / 9f, width * 0.58f)
+    val meta = remember(rec) { recMeta(rec) }
+    val hasProgress = rec.progress != null
+    // Si sobra alto y no hay línea secundaria, el título puede usar dos renglones.
+    val titleLines = if (meta.isBlank() && height >= 76.dp) 2 else 1
+    Box(
         modifier
             .zIndex(if (focused) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width, height)
             .glass(shape, bg)
+            .clip(shape)
             .border(1.dp, Color.White.copy(alpha = if (focused) 0f else 0.14f), shape)
             .onFocusChanged { focused = it.isFocused }
             .dpadActions(onClick)
-            .focusable()
-            .padding(pad),
-        verticalAlignment = Alignment.CenterVertically,
+            .focusable(),
     ) {
-        Box(Modifier.size(thumbW, thumbH).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.35f))) {
+        // Imagen a la derecha que se desvanece hacia el texto (máscara de alfa, sin recortes duros).
+        Box(
+            Modifier.align(Alignment.CenterEnd).size(imgW, height)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(0f to Color.Transparent, 0.6f to Color.Black),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
+                },
+        ) {
             image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium) }
-            if (image == null) {
-                BasicText(rec.title.take(1).uppercase(), style = ts(28.sp, FontWeight.Bold, Color.White.copy(alpha = 0.6f)), modifier = Modifier.align(Alignment.Center))
+        }
+        Column(
+            Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxWidth(if (image == null) 0.92f else 0.74f)
+                .padding(start = 14.dp, end = 4.dp, bottom = if (hasProgress) 8.dp else 0.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            BasicText(
+                rec.title, maxLines = titleLines, overflow = TextOverflow.Ellipsis,
+                style = ts(15.sp, FontWeight.Bold, fg).copy(lineHeight = 17.sp),
+            )
+            if (meta.isNotBlank()) {
+                BasicText(meta, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(11.5.sp, FontWeight.Medium, fg.copy(alpha = 0.72f)), modifier = Modifier.padding(top = 2.dp))
             }
         }
-        Column(Modifier.padding(start = 12.dp, end = 6.dp).weight(1f), verticalArrangement = Arrangement.Center) {
-            BasicText(appLabel.uppercase(), maxLines = 1, style = ts(10.sp, FontWeight.Bold, fg.copy(alpha = 0.6f)).copy(letterSpacing = 1.1.sp))
-            BasicText(rec.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(16.sp, FontWeight.Bold, fg), modifier = Modifier.padding(top = 2.dp))
-            if (rec.subtitle.isNotBlank()) {
-                BasicText(rec.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(12.sp, FontWeight.Medium, fg.copy(alpha = 0.72f)), modifier = Modifier.padding(top = 1.dp))
-            }
-            rec.progress?.let { p ->
-                Box(Modifier.padding(top = 7.dp).fillMaxWidth().height(3.dp).clip(CircleShape).background(fg.copy(alpha = 0.22f))) {
-                    Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(3.dp).clip(CircleShape).background(fg))
-                }
+        rec.progress?.let { p ->
+            Box(
+                Modifier.align(Alignment.BottomStart).padding(start = 14.dp, end = 14.dp, bottom = 9.dp)
+                    .fillMaxWidth().height(3.dp).clip(CircleShape).background(fg.copy(alpha = 0.25f)),
+            ) {
+                Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(3.dp).clip(CircleShape).background(fg))
             }
         }
     }

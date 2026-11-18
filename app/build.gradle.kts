@@ -5,6 +5,13 @@ plugins {
 }
 
 val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+val versionProps = java.util.Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}
+val appVersion = run {
+    val patch = (runNumber - versionProps.getProperty("patchBase").toInt()).coerceAtLeast(0)
+    "${versionProps.getProperty("major")}.${versionProps.getProperty("minor")}.$patch"
+}
 val keystorePath: String? = System.getenv("SIMPLE_KEYSTORE_PATH")
 
 android {
@@ -16,7 +23,7 @@ android {
         minSdk = 25
         targetSdk = 34
         versionCode = runNumber
-        versionName = "1.0.$runNumber"
+        versionName = appVersion
     }
 
     signingConfigs {

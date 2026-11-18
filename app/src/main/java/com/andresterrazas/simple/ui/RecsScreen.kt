@@ -83,7 +83,7 @@ fun RecsScreen(app: SimpleApp) {
         while (true) { value = com.andresterrazas.simple.home.Recs.seenSummary(); delay(1500) }
     }
     val s = "recs"
-    SettingsPage(title = "Continuar viendo", subtitle = "Sugerencias de tus apps", left = { BigIcon(Icons.Tv) }) {
+    SettingsPage(title = "Continuar viendo", subtitle = "Sugerencias de tus apps", left = { BigIcon(Icons.PlayCircle) }) {
         ToggleRow("Mostrar en el inicio", p.showRecs, Modifier.restorableFocus(s, "show", default = true),
             subtitle = "Al posarte en una app de streaming, muestra lo que dejaste a medias") {
             app.store.update { it.copy(showRecs = !it.showRecs) }
@@ -93,11 +93,11 @@ fun RecsScreen(app: SimpleApp) {
         val wnAvail = remember { wn.available(ctx) }
         val wnGranted by produceState(wn.granted(ctx)) { while (true) { value = wn.granted(ctx); delay(1000) } }
         if (!wnAvail) {
-            InfoBlock("Este dispositivo no tiene la fila \"Continuar viendo\" del sistema (normal en Fire TV). Se usan las sugerencias por notificación de abajo.")
+            InfoBlock("Este dispositivo no tiene la fila \"Continuar viendo\" del sistema" + (if (com.andresterrazas.simple.home.DefaultHome.isFireTv) " (normal en Fire TV)" else "") + ". Se usan las sugerencias por notificación de abajo.")
         } else if (wnGranted) {
             InfoBlock("Permiso concedido · ${wn.lastCount} elementos leídos" + (wn.lastError?.let { "\nError: $it" } ?: ""))
         } else {
-            SettingRow("Permitir leer Continuar viendo", Modifier.restorableFocus(s, "wn"), icon = Icons.Check,
+            SettingRow("Permitir leer Continuar viendo", Modifier.restorableFocus(s, "wn"), icon = Icons.ShieldCheck,
                 subtitle = "Tu TV pedirá confirmar una sola vez") {
                 (ctx as? com.andresterrazas.simple.MainActivity)?.requestWatchNextPermission()
             }
@@ -106,14 +106,14 @@ fun RecsScreen(app: SimpleApp) {
         }
         InfoBlock("La sección aparece al posarte en una app de streaming del dock que tenga algo a medias. YouTube está excluido por defecto; cambia cualquier app desde su menú (mantén OK) › Continuar viendo.")
 
-        SectionLabel("Fire TV · sugerencias por notificación")
+        SectionLabel("Sugerencias por notificación")
         InfoBlock(
             "Acceso a notificaciones: ${if (enabled) "activo" else "no activo"}\n" +
                 "Tarjetas disponibles (todas las fuentes): ${recs.size}" +
                 if (enabled && recs.isEmpty()) "\nAbre y usa algunas apps (YouTube, Prime Video, Plex…); las que publiquen sugerencias aparecerán aquí." else ""
         )
         if (!enabled) {
-            SettingRow("Abrir acceso a notificaciones", Modifier.restorableFocus(s, "access"), icon = Icons.Gear,
+            SettingRow("Abrir acceso a notificaciones", Modifier.restorableFocus(s, "access"), icon = Icons.Bell,
                 subtitle = "Busca simple y permítelo (en algunas TV está en Apps › Acceso especial)") {
                 val ok = runCatching {
                     ctx.startActivity(android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true
@@ -121,7 +121,7 @@ fun RecsScreen(app: SimpleApp) {
                 if (!ok) Toast.makeText(ctx, "Tu TV no tiene esa pantalla; usa el comando de ADB", Toast.LENGTH_LONG).show()
             }
             if (DefaultHome.canWriteSecure(ctx)) {
-                SettingRow("Activar ahora", Modifier.restorableFocus(s, "enable"), icon = Icons.Check) {
+                SettingRow("Activar ahora", Modifier.restorableFocus(s, "enable"), icon = Icons.Zap) {
                     val ok = com.andresterrazas.simple.home.Recs.enableViaSecure(ctx)
                     Toast.makeText(ctx, if (ok) "Listo" else "No se pudo activar", Toast.LENGTH_SHORT).show()
                 }
@@ -146,6 +146,6 @@ fun RecsScreen(app: SimpleApp) {
         )
         SectionLabel("Qué apps envían información")
         InfoBlock(if (seen.isEmpty()) "Nada todavía." else seen.joinToString("\n"), mono = true)
-        InfoBlock("simple solo lee las sugerencias que las apps publican para el inicio de TV; no lee mensajes ni datos personales, y nada sale de tu Fire TV.")
+        InfoBlock("simple solo lee las sugerencias que las apps publican para el inicio de TV; no lee mensajes ni datos personales, y nada sale de tu ${com.andresterrazas.simple.home.DefaultHome.tvName}.")
     }
 }

@@ -71,6 +71,8 @@ import kotlinx.coroutines.delay
 
 // Fondo de pantalla: galería, desenfoque y subida desde el celular.
 
+internal val BLUR_VALUES = listOf(0, 10, 20, 30, 50, 75, 100, 125, 150, 200, 250)
+
 internal fun blurLabel(v: Int) = if (v <= 0) "Ninguno" else "$v"
 
 @Composable
@@ -139,17 +141,19 @@ fun WallpaperScreen(app: SimpleApp, nav: Nav) {
     val s = "wallpaper"
     SettingsPage(title = "Fondo", left = { WallpaperPreview(app) }) {
         SectionLabel("Superposición")
-        SettingRow("Estilo", Modifier.restorableFocus(s, "style", default = true), icon = Icons.Brush, value = p.overlay.label) {
+        SettingRow("Estilo", Modifier.restorableFocus(s, "style", default = true), icon = Icons.Contrast, value = p.overlay.label) {
             app.store.update { it.copy(overlay = if (it.overlay == OverlayStyle.LIGHT) OverlayStyle.DARK else OverlayStyle.LIGHT) }
         }
-        SettingRow("Desenfoque", Modifier.restorableFocus(s, "blur"), icon = Icons.ImageIc, value = blurLabel(p.blur)) { nav.push(Screen.Blur) }
+        DropdownRow("Desenfoque", BLUR_VALUES, p.blur, ::blurLabel, s, "blur", icon = Icons.Aperture) { v ->
+            app.store.update { it.copy(blur = v) }
+        }
 
         SectionLabel("Cambio automático")
         SettingRow("Cambiar fondo automáticamente", Modifier.restorableFocus(s, "rotate"), icon = Icons.Refresh,
             value = p.rotateMode.label) { nav.push(Screen.Rotate) }
 
         SectionLabel("Origen")
-        SettingRow("Subir foto desde el celular", Modifier.restorableFocus(s, "upload"), icon = Icons.Phone,
+        SettingRow("Subir foto desde el celular", Modifier.restorableFocus(s, "upload"), icon = Icons.QrCode,
             subtitle = "Escanea un código QR y elige una foto") { nav.push(Screen.Upload) }
 
         if (userIds.isNotEmpty()) {
@@ -172,7 +176,7 @@ fun WallpaperScreen(app: SimpleApp, nav: Nav) {
 @Composable
 fun BlurScreen(app: SimpleApp) {
     val p by app.store.state.collectAsState()
-    val values = listOf(0, 10, 20, 30, 50, 75, 100, 125, 150, 200, 250)
+    val values = BLUR_VALUES
     SettingsPage(title = "Desenfoque", subtitle = "Del fondo de pantalla", left = { WallpaperPreview(app) }) {
         values.forEach { v ->
             RadioRow(blurLabel(v), p.blur == v, Modifier.restorableFocus("blur", "v$v", default = p.blur == v)) {
@@ -209,7 +213,7 @@ fun UploadScreen(app: SimpleApp, nav: Nav) {
         }
     }) {
         SectionLabel("Cómo hacerlo")
-        InfoBlock("1. Conecta tu celular a la misma red Wi‑Fi que el Fire TV.\n2. Escanea el código QR con la cámara, o abre esta dirección en el navegador:")
+        InfoBlock("1. Conecta tu celular a la misma red Wi‑Fi que ${if (com.andresterrazas.simple.home.DefaultHome.isFireTv) "el Fire TV" else "la TV"}.\n2. Escanea el código QR con la cámara, o abre esta dirección en el navegador:")
         BasicText(
             url ?: "Sin conexión a la red",
             style = ts(26.sp, FontWeight.Bold),
@@ -236,11 +240,10 @@ fun RotateScreen(app: SimpleApp) {
             InfoBlock("Se alternarán tus ${pool.size} fotos subidas.")
         }
         SectionLabel("Frecuencia")
-        com.andresterrazas.simple.data.RotateMode.entries.forEach { m ->
-            RadioRow(m.label, p.rotateMode == m, Modifier.restorableFocus(s, m.name, default = p.rotateMode == m)) {
-                app.store.update { it.copy(rotateMode = m, rotateKey = "") }
-            }
-        }
+        DropdownRow(
+            "Cambiar", com.andresterrazas.simple.data.RotateMode.entries, p.rotateMode, { it.label }, s, "mode",
+            icon = Icons.Refresh, default = true,
+        ) { m -> app.store.update { it.copy(rotateMode = m, rotateKey = "") } }
         if (p.rotateMode == com.andresterrazas.simple.data.RotateMode.CUSTOM) {
             SectionLabel("Cada cuánto")
             val unitName = if (p.rotateValue == 1) p.rotateUnit.singular else p.rotateUnit.label
@@ -252,11 +255,10 @@ fun RotateScreen(app: SimpleApp) {
                     app.store.update { it.copy(rotateValue = (it.rotateValue + stepFor(it.rotateValue, true)).coerceAtMost(99), rotateKey = "") }
                 }
             }
-            com.andresterrazas.simple.data.RotateUnit.entries.forEach { u ->
-                RadioRow(u.label.replaceFirstChar { it.uppercase() }, p.rotateUnit == u, Modifier.restorableFocus(s, "u_${u.name}")) {
-                    app.store.update { it.copy(rotateUnit = u, rotateKey = "") }
-                }
-            }
+            DropdownRow(
+                "Unidad", com.andresterrazas.simple.data.RotateUnit.entries, p.rotateUnit, { it.label.replaceFirstChar { c -> c.uppercase() } }, s, "unit",
+                icon = Icons.Calendar,
+            ) { u -> app.store.update { it.copy(rotateUnit = u, rotateKey = "") } }
         }
         if (p.rotateMode != com.andresterrazas.simple.data.RotateMode.OFF) {
             SectionLabel("Opciones")
@@ -266,7 +268,7 @@ fun RotateScreen(app: SimpleApp) {
             }
         }
         if (pool.size >= 2) {
-            SettingRow("Cambiar ahora", Modifier.restorableFocus(s, "now"), icon = Icons.Refresh, subtitle = "Pasa a la siguiente foto") {
+            SettingRow("Cambiar ahora", Modifier.restorableFocus(s, "now"), icon = Icons.SkipForward, subtitle = "Pasa a la siguiente foto") {
                 app.rotateNow()
                 Toast.makeText(ctx, "Fondo cambiado", Toast.LENGTH_SHORT).show()
             }

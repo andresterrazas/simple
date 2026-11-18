@@ -48,8 +48,8 @@ enum class IconMode(val label: String) {
 }
 
 enum class InterceptMode(val label: String, val description: String) {
-    STRICT("Estricto", "Solo cuando aparece la pantalla de inicio de Amazon."),
-    BROAD("Amplio", "Cualquier pantalla del inicio de Amazon. Úsalo si el modo estricto no responde."),
+    STRICT("Estricto", "Solo cuando aparece la pantalla de inicio principal del sistema."),
+    BROAD("Amplio", "Cualquier pantalla del inicio del sistema. Úsalo si el modo estricto no responde."),
 }
 
 enum class DockOpacity(val label: String, val alpha: Float) {

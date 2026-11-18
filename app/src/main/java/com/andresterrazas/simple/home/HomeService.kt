@@ -29,6 +29,11 @@ object DefaultHome {
 
     val isFireTv: Boolean get() = Build.MANUFACTURER.equals("Amazon", ignoreCase = true)
 
+    /** Nombres que cambian según el dispositivo: un Fire TV o cualquier otra TV (Google TV, Android TV). */
+    val tvName: String get() = if (isFireTv) "Fire TV" else "TV"
+    val systemSettingsTitle: String get() = if (isFireTv) "Ajustes del Fire TV" else "Ajustes de la TV"
+    val stockHomeName: String get() = if (isFireTv) "el inicio de Amazon" else "el inicio del sistema"
+
     @Volatile private var stockCache: Set<String>? = null
 
     /** Launchers del sistema instalados (Amazon, Google TV, Android TV, PatchWall de Xiaomi…), excepto simple. */

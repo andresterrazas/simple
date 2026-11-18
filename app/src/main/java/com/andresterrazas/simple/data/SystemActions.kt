@@ -26,7 +26,7 @@ object SystemActions {
         SystemShortcut("apps", "Aplicaciones", "Administrar apps instaladas", listOf(action(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS), action(Settings.ACTION_APPLICATION_SETTINGS))),
         SystemShortcut("remotes", "Controles y Bluetooth", "Mandos, controles de juego y dispositivos", listOf(action(Settings.ACTION_BLUETOOTH_SETTINGS))),
         SystemShortcut("accessibility", "Accesibilidad", "Servicios y opciones de accesibilidad", listOf(action(Settings.ACTION_ACCESSIBILITY_SETTINGS))),
-        SystemShortcut("device", "Mi Fire TV", "Información, reinicio y opciones de desarrollador", listOf(action(Settings.ACTION_DEVICE_INFO_SETTINGS))),
+        SystemShortcut("device", if (com.andresterrazas.simple.home.DefaultHome.isFireTv) "Mi Fire TV" else "Acerca de la TV", "Información, reinicio y opciones de desarrollador", listOf(action(Settings.ACTION_DEVICE_INFO_SETTINGS))),
         SystemShortcut("date", "Fecha y hora", "Zona horaria y formato", listOf(action(Settings.ACTION_DATE_SETTINGS))),
         SystemShortcut("all", "Todos los ajustes", "Menú completo de configuración", emptyList()),
     )

@@ -91,21 +91,23 @@ fun SetupScreen(app: SimpleApp, nav: Nav) {
         if (!DefaultHome.isFireTv) DefaultHomeSection(s)
 
         if (canWrite && !enabled) {
-            SettingRow("Activar automáticamente", Modifier.restorableFocus(s, "auto"), icon = Icons.Check, subtitle = "simple tiene permiso para activarse solo") {
+            SettingRow("Activar automáticamente", Modifier.restorableFocus(s, "auto"), icon = Icons.Zap, subtitle = "simple tiene permiso para activarse solo") {
                 val ok = DefaultHome.enableViaSecure(ctx)
                 Toast.makeText(ctx, if (ok) "Listo, simple está activo" else "No se pudo activar", Toast.LENGTH_SHORT).show()
             }
         }
 
         SectionLabel(if (DefaultHome.isFireTv) "Opción 1 · Desde el Fire TV" else "Respaldo · Servicio de accesibilidad")
-        SettingRow("Abrir Accesibilidad", Modifier.restorableFocus(s, "a11y"), icon = Icons.Person,
+        SettingRow("Abrir Accesibilidad", Modifier.restorableFocus(s, "a11y"), icon = Icons.Accessibility,
             subtitle = "Busca simple y actívalo. Si no aparece en la lista, usa la opción 2.") { SystemActions.openAccessibility(ctx) }
 
         SectionLabel("Opción 2 · Con ADB, una sola vez")
-        InfoBlock("1. En el Fire TV: Mi Fire TV › Opciones para desarrolladores › Depuración ADB: activada.\n" +
-            "2. Desde tu computadora o una app de ADB en el celular, conéctate a la IP del Fire TV y ejecuta:")
+        InfoBlock(
+            (if (DefaultHome.isFireTv) "1. En el Fire TV: Mi Fire TV › Opciones para desarrolladores › Depuración ADB: activada.\n"
+            else "1. En la TV: Ajustes › Sistema › Opciones para desarrolladores › Depuración USB/ADB: activada.\n") +
+            "2. Desde tu computadora o una app de ADB en el celular, conéctate a la IP de tu ${DefaultHome.tvName} y ejecuta:")
         InfoBlock(DefaultHome.adbCommands(ctx).joinToString("\n\n"), mono = true)
-        InfoBlock("El último comando es opcional pero recomendado: permite que simple se vuelva a activar solo si una actualización de Fire OS lo desactiva.")
+        InfoBlock("El último comando es opcional pero recomendado: permite que simple se vuelva a activar solo si una actualización del sistema lo desactiva.")
         SettingRow("Comprobar de nuevo", Modifier.restorableFocus(s, "check"), icon = Icons.Refresh,
             subtitle = if (enabled) "Activo" else "Inactivo") {
             if (DefaultHome.isEnabled(ctx)) Toast.makeText(ctx, "simple está activo", Toast.LENGTH_SHORT).show()

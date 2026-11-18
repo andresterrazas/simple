@@ -59,7 +59,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="v1.0.${{ github.run_number }}"
+          MAJOR=$(grep '^major=' version.properties | cut -d= -f2)
+          MINOR=$(grep '^minor=' version.properties | cut -d= -f2)
+          BASE=$(grep '^patchBase=' version.properties | cut -d= -f2)
+          PATCH=$(( ${{ github.run_number }} - BASE )); [ $PATCH -lt 0 ] && PATCH=0
+          VERSION="v$MAJOR.$MINOR.$PATCH"
           {
             if [ -f .github/release-notes.md ]; then cat .github/release-notes.md; echo; fi
             echo "## Instalar"

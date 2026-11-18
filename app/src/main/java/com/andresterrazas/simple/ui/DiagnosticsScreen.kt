@@ -80,7 +80,7 @@ fun DiagnosticsScreen(app: SimpleApp) {
     val events by produceState(DefaultHome.recentEvents()) {
         while (true) { value = DefaultHome.recentEvents(); delay(1000) }
     }
-    SettingsPage(title = "Diagnóstico", left = { BigIcon(Icons.Alert) }) {
+    SettingsPage(title = "Diagnóstico", left = { BigIcon(Icons.Activity) }) {
         SectionLabel("Dispositivo")
         InfoBlock(
             "Modelo: ${Build.MANUFACTURER} ${Build.MODEL}\n" +
@@ -116,7 +116,7 @@ fun DiagnosticsScreen(app: SimpleApp) {
                 "Permiso de reactivación: ${if (DefaultHome.canWriteSecure(ctx)) "concedido" else "no concedido"}\n" +
                 "Modo de detección: ${p.intercept.label}"
         )
-        SettingRow("Actualizar lista de apps", Modifier.restorableFocus("diag", "refresh", default = true), icon = Icons.Refresh) {
+        SettingRow("Actualizar lista de apps", Modifier.restorableFocus("diag", "refresh", default = true), icon = Icons.Package) {
             app.refreshApps()
             Toast.makeText(ctx, "Lista actualizada", Toast.LENGTH_SHORT).show()
         }

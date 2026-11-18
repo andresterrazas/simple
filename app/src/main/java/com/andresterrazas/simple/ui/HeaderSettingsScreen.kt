@@ -46,33 +46,27 @@ fun HeaderSettingsScreen(app: SimpleApp, nav: Nav) {
     val weather by app.weather.now.collectAsState()
     val now = rememberNow()
     val s = "header"
-    SettingsPage(title = "Encabezado", subtitle = "Fecha y hora, clima y botones", left = { BigIcon(Icons.Sliders) }) {
+    SettingsPage(title = "Encabezado", subtitle = "Fecha y hora, clima y botones", left = { BigIcon(Icons.PanelTop) }) {
         SectionLabel("Fecha y hora")
-        ClockMode.entries.forEachIndexed { i, m ->
-            RadioRow(m.label, p.clockMode == m, Modifier.restorableFocus(s, "clock_${m.name}", default = i == 0)) {
-                app.store.update { it.copy(clockMode = m) }
-            }
-        }
+        DropdownRow(
+            "Mostrar", ClockMode.entries, p.clockMode, { it.label }, s, "clock", icon = Icons.Clock, default = true,
+        ) { m -> app.store.update { it.copy(clockMode = m) } }
         if (p.clockMode == ClockMode.TIME_DATE) {
-            SectionLabel("Formato de fecha")
-            DateStyle.entries.forEach { d ->
-                RadioRow(d.label(now), p.dateStyle == d, Modifier.restorableFocus(s, "date_${d.name}")) {
-                    app.store.update { it.copy(dateStyle = d) }
-                }
-            }
+            DropdownRow(
+                "Formato de fecha", DateStyle.entries, p.dateStyle, { it.label(now) }, s, "date", icon = Icons.Calendar,
+            ) { d -> app.store.update { it.copy(dateStyle = d) } }
         }
 
         SectionLabel("Clima")
-        WeatherStyle.entries.forEach { w ->
-            RadioRow(w.label, p.weatherStyle == w, Modifier.restorableFocus(s, "weather_${w.name}"), subtitle = w.description) {
-                app.store.update { it.copy(weatherStyle = w) }
-            }
-        }
+        DropdownRow(
+            "Estilo", WeatherStyle.entries, p.weatherStyle, { it.label }, s, "weather", icon = Icons.CloudSun,
+            optionSubtitle = { it.description },
+        ) { w -> app.store.update { it.copy(weatherStyle = w) } }
         if (p.weatherStyle != WeatherStyle.OFF) {
             val place = Place.decode(p.weatherPlace)
             SettingRow("Ubicación", Modifier.restorableFocus(s, "place"), icon = Icons.Pin,
                 value = place?.name?.substringBefore(',') ?: "Automática") { nav.push(Screen.WeatherPlace) }
-            SettingRow("Unidades", Modifier.restorableFocus(s, "unit"), icon = Icons.Sun, value = p.tempUnit.symbol) {
+            SettingRow("Unidades", Modifier.restorableFocus(s, "unit"), icon = Icons.Thermometer, value = p.tempUnit.symbol) {
                 app.store.update { it.copy(tempUnit = if (it.tempUnit == TempUnit.CELSIUS) TempUnit.FAHRENHEIT else TempUnit.CELSIUS) }
             }
             InfoBlock(
@@ -153,7 +147,7 @@ fun WeatherPlaceScreen(app: SimpleApp) {
                 },
             )
         }
-        SettingRow("Buscar", Modifier.restorableFocus(s, "search"), icon = Icons.Pin,
+        SettingRow("Buscar", Modifier.restorableFocus(s, "search"), icon = Icons.Search,
             subtitle = if (searching) "Buscando…" else null) { search() }
         results?.let { list ->
             if (list.isEmpty()) InfoBlock("No se encontraron ciudades con ese nombre.")

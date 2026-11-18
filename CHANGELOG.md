@@ -2,6 +2,15 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.1.0
+- Tarjetas de Continuar viendo rediseñadas: imagen a la derecha, título a todo lo ancho, progreso siempre visible en la base y línea corta "T5 E4 · faltan 23 min".
+- Menús desplegables para los ajustes con varias opciones.
+- Aplicaciones: visibles arriba y ocultas abajo, con el foco en su lugar al cambiar una.
+- Íconos nuevos y sin repetir; engrane real para los ajustes del sistema.
+- Textos de "Fire TV" solo en Fire TV; en otras TV dicen "la TV".
+- Desplazamiento de los menús corregido (no se traba al final y regresa completo arriba); vidrio estable en filas a medio salir.
+- Numeración 1.1.x (`version.properties`).
+
 ## v1.0.21
 - Clima en el encabezado (compacto o con pronóstico), ubicación automática o por ciudad.
 - Cambio automático de fondo entre las fotos subidas.

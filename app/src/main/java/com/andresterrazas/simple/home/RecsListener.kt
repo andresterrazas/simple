@@ -32,6 +32,10 @@ data class Rec(
     /** Imagen remota o local que se carga bajo demanda. */
     val imageUri: String? = null,
     val source: String = "notificación",
+    /** Temporada y episodio compactos, p. ej. "T5 E4" (solo series). */
+    val episode: String = "",
+    /** Milisegundos que faltan para terminar, si la app los publica. */
+    val remainingMs: Long = 0,
 )
 
 /**

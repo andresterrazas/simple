@@ -402,8 +402,9 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
 
         // Continuar viendo de la app enfocada: tarjetas horizontales sobre el dock, alineadas a su borde izquierdo.
         if (hasFavs) {
-            val cardH = (look.height * 0.78f).coerceAtLeast(64.dp)
-            val cardW = (rowWidth - PANEL_PAD * 2) * 0.29f
+            // Tres tarjetas y un asomo de la cuarta; el alto sigue al ancho para que el texto respire.
+            val cardW = ((rowWidth - PANEL_PAD * 2 - 48.dp) / 3.25f).coerceIn(200.dp, 300.dp)
+            val cardH = (cardW * 0.34f).coerceIn(68.dp, 92.dp)
             val panelH = 40.dp + cardH
             RecsOverlay(
                 hover = hover,

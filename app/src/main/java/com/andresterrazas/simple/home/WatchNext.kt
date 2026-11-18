@@ -113,6 +113,8 @@ object WatchNext {
                     launch = intent,
                     imageUri = image,
                     source = "Watch Next",
+                    episode = se,
+                    remainingMs = if (dur > 0 && pos in 1 until dur) dur - pos else 0,
                 )
             }
         }

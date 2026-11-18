@@ -36,6 +36,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -75,7 +79,7 @@ import kotlinx.coroutines.delay
 
 internal fun controlInfo(id: String): Pair<String, ImageVector> = when (id) {
     CONTROL_CUSTOM -> "Personalizaciones" to Icons.Sliders
-    CONTROL_SETTINGS -> "Configuración del Fire TV" to Icons.Gear
+    CONTROL_SETTINGS -> com.andresterrazas.simple.home.DefaultHome.systemSettingsTitle to Icons.Gear
     CONTROL_WIFI -> "Internet" to Icons.Wifi
     CONTROL_STORE -> "Tienda de aplicaciones" to Icons.Store
     else -> id to Icons.Info
@@ -120,30 +124,51 @@ fun AppsScreen(app: SimpleApp) {
     val all = remember(apps, p.orderMode, p.customOrder) { orderApps(apps, p) }
     SettingsPage(title = "Aplicaciones", subtitle = "${apps.size} instaladas · ${p.hidden.size} ocultas", left = { BigIcon(Icons.Grid) }) {
         SectionLabel("Orden")
-        OrderMode.entries.forEachIndexed { i, m ->
-            val sub = when (m) {
-                OrderMode.ALPHA -> "De la A a la Z"
-                OrderMode.CUSTOM -> "Tu propio orden (usa las flechas de abajo o Mover)"
-                OrderMode.RECENT -> "Las instaladas más recientemente primero"
-            }
-            RadioRow(m.label, p.orderMode == m, Modifier.restorableFocus("apps", "order_${m.name}", default = i == 0), subtitle = sub) {
-                app.store.update { it.copy(orderMode = m) }
-            }
+        DropdownRow(
+            "Ordenar", OrderMode.entries, p.orderMode, { it.label }, "apps", "order", icon = Icons.Sort, default = true,
+            optionSubtitle = {
+                when (it) {
+                    OrderMode.ALPHA -> "De la A a la Z"
+                    OrderMode.CUSTOM -> "Tu propio orden (usa las flechas o Mover)"
+                    OrderMode.RECENT -> "Las instaladas más recientemente primero"
+                }
+            },
+        ) { m -> app.store.update { it.copy(orderMode = m) } }
+        // Las visibles arriba y las ocultas abajo. Un solo bucle con claves para que Compose mueva
+        // cada fila entre secciones sin recrearla.
+        val shown = all.filter { it.pkg !in p.hidden }
+        val hiddenApps = all.filter { it.pkg in p.hidden }
+        val sorted = shown + hiddenApps
+        val eyes = remember { HashMap<String, FocusRequester>() }
+        var pendingFocus by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(pendingFocus, sorted) {
+            val target = pendingFocus ?: return@LaunchedEffect
+            withFrameNanos { }
+            runCatching { eyes[target]?.requestFocus() }
+            pendingFocus = null
         }
-        SectionLabel("Tus aplicaciones")
-        all.forEachIndexed { i, e ->
+        if (shown.isNotEmpty()) SectionLabel("En el inicio · ${shown.size}")
+        sorted.forEachIndexed { idx, e ->
             key(e.pkg) {
                 val hidden = e.pkg in p.hidden
+                if (idx == shown.size) SectionLabel("Ocultas · ${hiddenApps.size}")
+                val i = if (hidden) -1 else idx
+                val eyeFr = eyes.getOrPut(e.pkg) { FocusRequester() }
                 ManageRow(e.label, leading = { MiniTile(app, e, p.iconMode(e.pkg)) }, dimmed = hidden) {
-                    CircleButton(if (hidden) Icons.EyeOff else Icons.Eye, Modifier.restorableFocus("apps", "eye_${e.pkg}"),
+                    CircleButton(if (hidden) Icons.EyeOff else Icons.Eye, Modifier.restorableFocus("apps", "eye_${e.pkg}").focusRequester(eyeFr),
                         iconTint = if (hidden) Color(0xFFFF8A7A) else null) {
+                        // El foco se queda en el mismo lugar (la app que ocupa ahora esta posición).
+                        val next = sorted.getOrNull(idx + 1)?.pkg ?: sorted.getOrNull(idx - 1)?.pkg
                         app.store.update { it.toggleHidden(e.pkg) }
+                        pendingFocus = next
                     }
-                    CircleButton(Icons.Up, Modifier.restorableFocus("apps", "up_${e.pkg}").graphicsLayer { alpha = if (i > 0) 1f else 0.35f }) {
-                        if (i > 0) app.store.update { it.moveNextTo(apps, e.pkg, all[i - 1].pkg, after = false) }
-                    }
-                    CircleButton(Icons.Down, Modifier.restorableFocus("apps", "down_${e.pkg}").graphicsLayer { alpha = if (i < all.lastIndex) 1f else 0.35f }) {
-                        if (i < all.lastIndex) app.store.update { it.moveNextTo(apps, e.pkg, all[i + 1].pkg, after = true) }
+                    if (!hidden) {
+                        CircleButton(Icons.Up, Modifier.restorableFocus("apps", "up_${e.pkg}").graphicsLayer { alpha = if (i > 0) 1f else 0.35f }) {
+                            if (i > 0) app.store.update { it.moveNextTo(apps, e.pkg, shown[i - 1].pkg, after = false) }
+                        }
+                        CircleButton(Icons.Down, Modifier.restorableFocus("apps", "down_${e.pkg}").graphicsLayer { alpha = if (i < shown.lastIndex) 1f else 0.35f }) {
+                            if (i < shown.lastIndex) app.store.update { it.moveNextTo(apps, e.pkg, shown[i + 1].pkg, after = true) }
+                        }
                     }
                 }
             }
@@ -157,12 +182,12 @@ fun AppsScreen(app: SimpleApp) {
 @Composable
 fun SystemScreen() {
     val ctx = LocalContext.current
-    SettingsPage(title = "Fire TV", subtitle = "Ajustes del sistema", left = { BigIcon(Icons.Tv) }) {
+    SettingsPage(title = com.andresterrazas.simple.home.DefaultHome.tvName, subtitle = "Ajustes del sistema", left = { BigIcon(Icons.Gear) }) {
         SectionLabel("Accesos directos")
         SystemActions.shortcuts.forEachIndexed { i, sc ->
             val icon = when (sc.id) {
-                "network" -> Icons.Wifi; "display" -> Icons.Display; "apps" -> Icons.Grid
-                "remotes" -> Icons.Bluetooth; "accessibility" -> Icons.Person; "device" -> Icons.Info
+                "network" -> Icons.Wifi; "display" -> Icons.Display; "apps" -> Icons.Package
+                "remotes" -> Icons.Gamepad; "accessibility" -> Icons.Accessibility; "device" -> Icons.Info
                 "date" -> Icons.Calendar; else -> Icons.Gear
             }
             SettingRow(sc.title, Modifier.restorableFocus("system", sc.id, default = i == 0), icon = icon, subtitle = sc.subtitle) {

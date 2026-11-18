@@ -129,43 +129,32 @@ fun DockScreen(app: SimpleApp) {
     val p by app.store.state.collectAsState()
     val s = "dock"
     SettingsPage(title = "Dock", subtitle = "Así se verá tu fila de apps", left = { DockPreview(app) }) {
-        SectionLabel("Fondo del dock")
-        com.andresterrazas.simple.data.DockOpacity.entries.forEach { o ->
-            RadioRow(o.label, p.dockOpacity == o, Modifier.restorableFocus(s, "op_${o.name}", default = p.dockOpacity == o)) {
-                app.store.update { it.copy(dockOpacity = o) }
-            }
+        SectionLabel("Apariencia")
+        DropdownRow("Fondo", com.andresterrazas.simple.data.DockOpacity.entries, p.dockOpacity, { it.label }, s, "op", icon = Icons.Contrast, default = true) { o ->
+            app.store.update { it.copy(dockOpacity = o) }
         }
-        ToggleRow(
-            "Mostrar la siguiente fila", p.peekRow, Modifier.restorableFocus(s, "peek"),
-            subtitle = "Asoma bajo el dock, como pista de que hay más apps",
-        ) { app.store.update { it.copy(peekRow = !it.peekRow) } }
-        SectionLabel("Ancho del dock")
-        com.andresterrazas.simple.data.DockSize.entries.forEach { z ->
-            RadioRow(z.label, p.dockSize == z, Modifier.restorableFocus(s, "size_${z.name}"), subtitle = "${(z.widthFraction * 100).toInt()} % del ancho de la pantalla") {
-                app.store.update { it.copy(dockSize = z) }
-            }
+        DropdownRow(
+            "Ancho", com.andresterrazas.simple.data.DockSize.entries, p.dockSize, { it.label }, s, "size", icon = Icons.Dock,
+            optionSubtitle = { "${(it.widthFraction * 100).toInt()} % del ancho de la pantalla" },
+        ) { z -> app.store.update { it.copy(dockSize = z) } }
+        DropdownRow("Forma", com.andresterrazas.simple.data.DockShape.entries, p.dockShape, { it.label }, s, "shape", icon = Icons.Grid) { f ->
+            app.store.update { it.copy(dockShape = f) }
         }
-        SectionLabel("Forma")
-        com.andresterrazas.simple.data.DockShape.entries.forEach { f ->
-            RadioRow(f.label, p.dockShape == f, Modifier.restorableFocus(s, "shape_${f.name}")) {
-                app.store.update { it.copy(dockShape = f) }
-            }
-        }
-        SectionLabel("Nombres de las apps")
-        com.andresterrazas.simple.data.LabelMode.entries.forEach { l ->
-            RadioRow(l.label, p.labelMode == l, Modifier.restorableFocus(s, "label_${l.name}")) {
-                app.store.update { it.copy(labelMode = l) }
-            }
+        DropdownRow("Nombres de las apps", com.andresterrazas.simple.data.LabelMode.entries, p.labelMode, { it.label }, s, "label", icon = Icons.TextSize) { l ->
+            app.store.update { it.copy(labelMode = l) }
         }
         SectionLabel("Al enfocar una app")
-        com.andresterrazas.simple.data.FocusZoom.entries.forEach { z ->
-            RadioRow("Zoom ${z.label.lowercase()}", p.focusZoom == z, Modifier.restorableFocus(s, "zoom_${z.name}")) {
-                app.store.update { it.copy(focusZoom = z) }
-            }
+        DropdownRow("Zoom", com.andresterrazas.simple.data.FocusZoom.entries, p.focusZoom, { it.label }, s, "zoom", icon = Icons.Plus) { z ->
+            app.store.update { it.copy(focusZoom = z) }
         }
         ToggleRow(
             "Contorno al enfocar", p.focusOutline, Modifier.restorableFocus(s, "outline"),
             subtitle = "Blanco, o gris en apps claras para que siempre se distinga",
         ) { app.store.update { it.copy(focusOutline = !it.focusOutline) } }
+        SectionLabel("Más apps")
+        ToggleRow(
+            "Mostrar la siguiente fila", p.peekRow, Modifier.restorableFocus(s, "peek"),
+            subtitle = "Asoma bajo el dock, como pista de que hay más apps",
+        ) { app.store.update { it.copy(peekRow = !it.peekRow) } }
     }
 }

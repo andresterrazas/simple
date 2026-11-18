@@ -105,14 +105,14 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
         ) { nav.push(Screen.Setup) }
 
         SectionLabel("Personalización")
-        SettingRow("Controles del encabezado", Modifier.restorableFocus(s, "controls"), icon = Icons.Sliders,
+        SettingRow("Controles del encabezado", Modifier.restorableFocus(s, "controls"), icon = Icons.PanelTop,
             subtitle = "Fecha y hora, clima y botones") { nav.push(Screen.Controls) }
         SettingRow("Dock", Modifier.restorableFocus(s, "dock"), icon = Icons.Dock, subtitle = "Opacidad, tamaño, forma y nombres") { nav.push(Screen.Dock) }
         SettingRow("Fondo", Modifier.restorableFocus(s, "wallpaper"), icon = Icons.ImageIc,
             subtitle = if (p.rotateMode == com.andresterrazas.simple.data.RotateMode.OFF) "Galería, desenfoque y tus fotos" else "Cambio automático: ${p.rotateMode.label.lowercase()}") { nav.push(Screen.Wallpaper) }
-        SettingRow("Continuar viendo", Modifier.restorableFocus(s, "recs"), icon = Icons.Tv,
+        SettingRow("Continuar viendo", Modifier.restorableFocus(s, "recs"), icon = Icons.PlayCircle,
             value = if (p.showRecs) "Activado" else "Desactivado") { nav.push(Screen.RecsSettings) }
-        SettingRow("Tamaño de los menús", Modifier.restorableFocus(s, "scale"), icon = Icons.Display, value = p.menuScale.label) {
+        SettingRow("Tamaño de los menús", Modifier.restorableFocus(s, "scale"), icon = Icons.TextSize, value = p.menuScale.label) {
             val all = com.andresterrazas.simple.data.MenuScale.entries
             app.store.update { it.copy(menuScale = all[(all.indexOf(it.menuScale) + 1) % all.size]) }
         }
@@ -122,16 +122,16 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
             "Aplicaciones", Modifier.restorableFocus(s, "apps"), icon = Icons.Grid,
             subtitle = "Orden ${p.orderMode.label.lowercase()} · " + if (p.hidden.isEmpty()) "ninguna oculta" else "${p.hidden.size} oculta${if (p.hidden.size == 1) "" else "s"}",
         ) { nav.push(Screen.Apps) }
-        SettingRow(if (DefaultHome.isFireTv) "Ajustes del Fire TV" else "Ajustes de la TV", Modifier.restorableFocus(s, "system"), icon = Icons.Tv,
+        SettingRow(DefaultHome.systemSettingsTitle, Modifier.restorableFocus(s, "system"), icon = Icons.Gear,
             subtitle = "Red, pantalla, controles, apps y más") { nav.push(Screen.System) }
         if (DefaultHome.isFireTv) {
-            SettingRow("Abrir el inicio de Amazon", Modifier.restorableFocus(s, "amazon"), icon = Icons.Home, subtitle = "simple se pausa 5 minutos") {
+            SettingRow("Abrir el inicio de Amazon", Modifier.restorableFocus(s, "amazon"), icon = Icons.ExternalLink, subtitle = "simple se pausa 5 minutos") {
                 DefaultHome.pause(5)
                 SystemActions.openAmazonHome(ctx)
             }
         }
 
         SectionLabel("Acerca de")
-        SettingRow("Diagnóstico", Modifier.restorableFocus(s, "diag"), icon = Icons.Alert, subtitle = "Estado del servicio y compatibilidad") { nav.push(Screen.Diagnostics) }
+        SettingRow("Diagnóstico", Modifier.restorableFocus(s, "diag"), icon = Icons.Activity, subtitle = "Estado del servicio y compatibilidad") { nav.push(Screen.Diagnostics) }
     }
 }
