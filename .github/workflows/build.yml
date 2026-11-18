@@ -60,7 +60,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="v1.0.${{ github.run_number }}"
+          {
+            if [ -f .github/release-notes.md ]; then cat .github/release-notes.md; echo; fi
+            echo "## Instalar"
+            echo
+            echo "En Downloader (Fire TV) o en el navegador de tu TV:"
+            echo
+            echo '```'
+            echo "https://github.com/${{ github.repository }}/releases/latest/download/simple.apk"
+            echo '```'
+          } > notes.md
           gh release create "$VERSION" simple.apk \
             --title "simple $VERSION" \
-            --notes "Instala en tu Fire TV con Downloader usando: https://github.com/${{ github.repository }}/releases/latest/download/simple.apk" \
+            --notes-file notes.md \
             --latest

@@ -378,9 +378,9 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
 
         // Continuar viendo de la app enfocada: tarjetas horizontales sobre el dock, alineadas a su borde izquierdo.
         if (hasFavs) {
-            val cardH = (look.height * 0.92f).coerceAtLeast(64.dp)
-            val cardW = (rowWidth - PANEL_PAD * 2 - 16.dp * 2) / 3
-            val panelH = 32.dp + cardH
+            val cardH = (look.height * 1.05f).coerceAtLeast(76.dp)
+            val cardW = (rowWidth - PANEL_PAD * 2 - 18.dp * 2) / 3
+            val panelH = 46.dp + cardH
             val label = apps.firstOrNull { it.pkg == shownPkg }?.label.orEmpty()
             AnimatedVisibility(
                 visible = recsShown,
@@ -645,10 +645,10 @@ private fun ContinueRow(
     val ctx = LocalContext.current
     val apps = (ctx.applicationContext as SimpleApp).repo.apps.collectAsState().value
     Column {
-        BasicText(title, style = ts(15.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.85f)), modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+        BasicText(title, style = ts(17.sp, FontWeight.Bold).copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 8f)), modifier = Modifier.padding(start = 6.dp, bottom = 12.dp))
         Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(end = 60.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp).padding(end = 60.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             recs.forEachIndexed { i, r ->
                 key(r.key) {
@@ -674,17 +674,25 @@ private fun ContinueRow(
     }
 }
 
-/** Tarjeta minimalista: miniatura a la izquierda; app, título, subtítulo y progreso a la derecha. */
+/**
+ * Tarjeta minimalista: miniatura a la izquierda; app, título, episodio y progreso a la derecha.
+ * Vidrio más oscuro que el resto para que el texto se lea sobre fondos claros; al enfocarla se
+ * vuelve blanca con texto oscuro, igual que las filas de los menús.
+ */
 @Composable
 private fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: String, width: Dp, height: Dp, modifier: Modifier, onClick: () -> Unit) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.04f else 1f, spring(dampingRatio = 0.8f, stiffness = 520f), label = "cardScale")
+    val scale by animateFloatAsState(if (focused) 1.05f else 1f, spring(dampingRatio = 0.8f, stiffness = 520f), label = "cardScale")
+    val bg by androidx.compose.animation.animateColorAsState(
+        if (focused) style.focusedFill else Color.Black.copy(alpha = if (style.dark) 0.42f else 0.26f), tween(160), label = "cardBg",
+    )
+    val fg = if (focused) style.focusedText else Color.White
     val image by produceState(rec.image ?: com.andresterrazas.simple.home.RecImages.cached(rec.imageUri), rec.key) {
         if (value == null && rec.imageUri != null) value = com.andresterrazas.simple.home.RecImages.load(ctx, rec.imageUri)
     }
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(22.dp)
     val pad = 10.dp
     val thumbH = height - pad * 2
     val thumbW = thumbH * 16f / 9f
@@ -693,26 +701,29 @@ private fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: Stri
             .zIndex(if (focused) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width, height)
-            .glass(shape, if (focused) Color.White.copy(alpha = 0.28f) else style.panel)
-            .then(if (focused) Modifier.border(2.dp, Color.White.copy(alpha = 0.9f), shape) else Modifier)
+            .glass(shape, bg)
+            .border(1.dp, Color.White.copy(alpha = if (focused) 0f else 0.14f), shape)
             .onFocusChanged { focused = it.isFocused }
             .dpadActions(onClick)
             .focusable()
             .padding(pad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(thumbW, thumbH).clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.3f))) {
-            image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium) }
+        Box(Modifier.size(thumbW, thumbH).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.35f))) {
+            image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High) }
+            if (image == null) {
+                BasicText(rec.title.take(1).uppercase(), style = ts(28.sp, FontWeight.Bold, Color.White.copy(alpha = 0.6f)), modifier = Modifier.align(Alignment.Center))
+            }
         }
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
-            BasicText(appLabel.uppercase(), maxLines = 1, style = ts(10.sp, FontWeight.Bold, Color.White.copy(alpha = 0.7f)))
-            BasicText(rec.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(15.sp, FontWeight.Bold), modifier = Modifier.padding(top = 2.dp))
+        Column(Modifier.padding(start = 16.dp, end = 6.dp).weight(1f), verticalArrangement = Arrangement.Center) {
+            BasicText(appLabel.uppercase(), maxLines = 1, style = ts(11.sp, FontWeight.Bold, fg.copy(alpha = 0.6f)).copy(letterSpacing = 1.2.sp))
+            BasicText(rec.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(19.sp, FontWeight.Bold, fg), modifier = Modifier.padding(top = 3.dp))
             if (rec.subtitle.isNotBlank()) {
-                BasicText(rec.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(12.sp, FontWeight.Medium, Color.White.copy(alpha = 0.75f)), modifier = Modifier.padding(top = 1.dp))
+                BasicText(rec.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(13.sp, FontWeight.Medium, fg.copy(alpha = 0.72f)), modifier = Modifier.padding(top = 2.dp))
             }
             rec.progress?.let { p ->
-                Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.25f))) {
-                    Box(Modifier.fillMaxWidth(p).height(3.dp).clip(CircleShape).background(Color.White))
+                Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(4.dp).clip(CircleShape).background(fg.copy(alpha = 0.22f))) {
+                    Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(4.dp).clip(CircleShape).background(fg))
                 }
             }
         }

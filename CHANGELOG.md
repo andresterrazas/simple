@@ -1,0 +1,29 @@
+# Historial de cambios
+
+Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
+
+## v1.0.17
+- Continuar viendo funcional al posarse en apps de streaming (Watch Next del sistema + sugerencias por notificación), tarjetas rediseñadas, exclusión por app (YouTube por defecto) y diagnóstico de contenido detectado.
+
+## v1.0.11 – v1.0.16
+- Dock adaptable al ancho de la TV con margen seguro contra sobrebarrido; la siguiente fila asoma bajo el dock.
+- Compatibilidad con Android TV / Google TV: elegir simple como inicio predeterminado del sistema (o por ADB); el servicio de respaldo reconoce cualquier launcher del sistema.
+- La vista normal del dock ya no se desplaza al regresar de la cuadrícula.
+- Primeras versiones de Continuar viendo (notificaciones y Watch Next).
+
+## v1.0.9 – v1.0.10
+- Fluidez: perfiles de compilación de Compose, tarjetas de apps en caché de disco y generadas de 2 en 2.
+- Al salir de Ajustes, Wi‑Fi o Tienda (con Inicio o Atrás) se regresa a simple.
+- Menús más compactos estilo ChillHub y opción "Tamaño de los menús".
+- Se retiró el botón Inicio directo experimental.
+
+## v1.0.5 – v1.0.8
+- Pantalla de configuración del dock (opacidad, ancho, forma, nombres, zoom, contorno) con vista previa.
+- Íconos en alta resolución cuando la app los incluye; imagen propia por app subida desde el celular.
+- Contorno de enfoque que cambia a gris en apps claras.
+- Menú de pulsación larga con vidrio teñido del color de la app.
+- Fondo procesado guardado en disco para aparecer al instante.
+
+## v1.0.3 – v1.0.4
+- Primera versión firmada: inicio con dock y cuadrícula, menú de app, ajustes, fondos con desenfoque y subida desde el celular, servicio para el botón Inicio en Fire TV.
+- Inicio con zonas fijas, dock siempre visible y foco delimitado.
