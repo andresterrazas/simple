@@ -2,6 +2,10 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.1.3
+- Nuevo logo como ícono de la app (ícono adaptable, banner de TV en xhdpi y xxxhdpi). La interfaz del launcher no cambia.
+- Logo, encabezado y vista previa social en el repositorio (`.github/assets`).
+
 ## v1.1.2
 - Continuar viendo a todo lo ancho con desvanecido en las orillas en lugar de corte recto; la tarjeta enfocada se mantiene dentro de los márgenes del dock.
 

@@ -1,4 +1,4 @@
 ## Novedades
 
-- **Continuar viendo sin cortes en las orillas.** Antes la fila se recortaba exactamente al ancho del dock, así que la tarjeta de la orilla quedaba cortada en seco y sin esquina redondeada. Ahora la fila usa todo el ancho de la pantalla: la primera tarjeta sigue alineada con el dock, y las que pasan del margen se desvanecen suavemente hacia la orilla.
-- La tarjeta enfocada siempre queda dentro de los márgenes del dock, nunca en la zona desvanecida.
+- **Nuevo ícono de la app.** simple estrena logo: un triángulo de play con pliegue de vidrio en tonos laguna, dentro de una loseta oscura. Es lo que ves en la cuadrícula de apps del sistema, en Apps recientes y en el banner de TV (ahora también en alta resolución para 4K). Dentro del launcher no cambia nada.
+- your TV made simple.

@@ -1,6 +1,10 @@
+<p align="center">
+  <img src=".github/assets/header.png" alt="simple · your TV made simple" width="100%">
+</p>
+
 # simple
 
-Launcher ligero para Fire TV (probado en Fire TV Stick 4K Plus · Fire OS 8). Hecho con Kotlin y Jetpack Compose.
+**your TV made simple.** Launcher ligero para Fire TV (probado en Fire TV Stick 4K Plus · Fire OS 8). Hecho con Kotlin y Jetpack Compose.
 
 - Fondo desenfocado con paneles de "vidrio" que no cuestan rendimiento (el desenfoque se calcula una sola vez).
 - Fila de favoritos que se expande a la cuadrícula completa al bajar.

@@ -92,7 +92,7 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
     val s = "main"
     SettingsPage(title = "simple", subtitle = "Versión ${BuildConfig.VERSION_NAME}", left = {
         Image(
-            painterResource(R.drawable.banner), null,
+            painterResource(R.drawable.settings_hero), null,
             Modifier.size(232.dp, 130.dp).clip(Shapes.hero),
             contentScale = ContentScale.Crop,
         )
