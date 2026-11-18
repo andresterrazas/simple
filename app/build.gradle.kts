@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,7 +7,7 @@ plugins {
 }
 
 val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-val versionProps = java.util.Properties().apply {
+val versionProps = Properties().apply {
     rootProject.file("version.properties").inputStream().use { load(it) }
 }
 val appVersion = run {
