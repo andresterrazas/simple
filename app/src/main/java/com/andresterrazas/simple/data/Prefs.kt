@@ -97,6 +97,29 @@ val DEFAULT_RECS_HIDDEN = setOf(
     "com.google.android.youtube.tvkids", "com.amazon.firetv.youtube.tv", "com.google.android.youtube.tvunplugged",
 )
 
+enum class WeatherStyle(val label: String, val description: String) {
+    OFF("Oculto", "No se muestra el clima"),
+    COMPACT("Compacto", "Ícono y temperatura junto a la hora"),
+    DETAILED("Con pronóstico", "Compacto y, al posarte en la hora, el pronóstico del día"),
+}
+
+enum class TempUnit(val label: String, val symbol: String) { CELSIUS("Celsius", "°C"), FAHRENHEIT("Fahrenheit", "°F") }
+
+enum class RotateMode(val label: String) {
+    OFF("Desactivado"),
+    HOURLY("Cada hora"),
+    DAILY("Cada día"),
+    WEEKLY("Cada semana"),
+    MONTHLY("Cada mes"),
+    CUSTOM("Personalizado"),
+}
+
+enum class RotateUnit(val label: String, val singular: String, val minutes: Long) {
+    MINUTES("minutos", "minuto", 1),
+    HOURS("horas", "hora", 60),
+    DAYS("días", "día", 60 * 24),
+}
+
 const val CONTROL_CUSTOM = "custom"
 const val CONTROL_SETTINGS = "settings"
 const val CONTROL_WIFI = "wifi"
@@ -131,6 +154,15 @@ data class Prefs(
     val peekRow: Boolean = true,
     val showRecs: Boolean = true,
     val recsHidden: Set<String> = DEFAULT_RECS_HIDDEN,
+    val weatherStyle: WeatherStyle = WeatherStyle.COMPACT,
+    val tempUnit: TempUnit = TempUnit.CELSIUS,
+    /** Ubicación elegida a mano: "lat,lon,nombre". Vacío = automática por la conexión. */
+    val weatherPlace: String = "",
+    val rotateMode: RotateMode = RotateMode.OFF,
+    val rotateValue: Int = 30,
+    val rotateUnit: RotateUnit = RotateUnit.MINUTES,
+    val rotateShuffle: Boolean = false,
+    val rotateKey: String = "",
 ) {
     fun iconMode(pkg: String): IconMode = iconModes[pkg] ?: IconMode.AUTO
 
@@ -242,6 +274,14 @@ class PrefsStore(context: Context) {
             peekRow = sp.getBoolean("peekRow", d.peekRow),
             showRecs = sp.getBoolean("showRecs", d.showRecs),
             recsHidden = if (sp.contains("recsHidden")) list("recsHidden").toSet() else d.recsHidden,
+            weatherStyle = enumOr(sp.getString("weatherStyle", null), d.weatherStyle),
+            tempUnit = enumOr(sp.getString("tempUnit", null), d.tempUnit),
+            weatherPlace = sp.getString("weatherPlace", null) ?: d.weatherPlace,
+            rotateMode = enumOr(sp.getString("rotateMode", null), d.rotateMode),
+            rotateValue = sp.getInt("rotateValue", d.rotateValue),
+            rotateUnit = enumOr(sp.getString("rotateUnit", null), d.rotateUnit),
+            rotateShuffle = sp.getBoolean("rotateShuffle", d.rotateShuffle),
+            rotateKey = sp.getString("rotateKey", null) ?: d.rotateKey,
         )
     }
 
@@ -272,6 +312,14 @@ class PrefsStore(context: Context) {
             .putBoolean("peekRow", p.peekRow)
             .putBoolean("showRecs", p.showRecs)
             .putString("recsHidden", p.recsHidden.joinToString("|"))
+            .putString("weatherStyle", p.weatherStyle.name)
+            .putString("tempUnit", p.tempUnit.name)
+            .putString("weatherPlace", p.weatherPlace)
+            .putString("rotateMode", p.rotateMode.name)
+            .putInt("rotateValue", p.rotateValue)
+            .putString("rotateUnit", p.rotateUnit.name)
+            .putBoolean("rotateShuffle", p.rotateShuffle)
+            .putString("rotateKey", p.rotateKey)
             .apply()
     }
 }

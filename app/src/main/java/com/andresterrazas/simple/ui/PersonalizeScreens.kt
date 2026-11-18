@@ -71,43 +71,7 @@ import kotlinx.coroutines.delay
 
 // Orden, reloj, controles del encabezado, aplicaciones y accesos a ajustes del sistema.
 
-@Composable
-fun OrderScreen(app: SimpleApp) {
-    val p by app.store.state.collectAsState()
-    SettingsPage(title = "Orden", left = { BigIcon(Icons.Sort) }) {
-        SectionLabel("Ordenar aplicaciones")
-        OrderMode.entries.forEach { m ->
-            val sub = when (m) {
-                OrderMode.ALPHA -> "De la A a la Z"
-                OrderMode.CUSTOM -> "Tu propio orden (usa Mover o Aplicaciones)"
-                OrderMode.RECENT -> "Las instaladas más recientemente primero"
-            }
-            RadioRow(m.label, p.orderMode == m, Modifier.restorableFocus("order", m.name, default = p.orderMode == m), subtitle = sub) {
-                app.store.update { it.copy(orderMode = m) }
-            }
-        }
-    }
-}
 
-@Composable
-fun ClockScreen(app: SimpleApp) {
-    val p by app.store.state.collectAsState()
-    val now = rememberNow()
-    SettingsPage(title = "Reloj", left = { BigIcon(Icons.Clock) }) {
-        SectionLabel("Pantalla")
-        ClockMode.entries.forEach { m ->
-            RadioRow(m.label, p.clockMode == m, Modifier.restorableFocus("clock", m.name, default = p.clockMode == m)) {
-                app.store.update { it.copy(clockMode = m) }
-            }
-        }
-        SectionLabel("Formato de fecha")
-        DateStyle.entries.forEach { d ->
-            RadioRow(d.label(now), p.dateStyle == d, Modifier.restorableFocus("clock", "d_${d.name}")) {
-                app.store.update { it.copy(dateStyle = d) }
-            }
-        }
-    }
-}
 
 internal fun controlInfo(id: String): Pair<String, ImageVector> = when (id) {
     CONTROL_CUSTOM -> "Personalizaciones" to Icons.Sliders
@@ -140,30 +104,6 @@ internal fun ManageRow(
     }
 }
 
-@Composable
-fun ControlsScreen(app: SimpleApp) {
-    val p by app.store.state.collectAsState()
-    SettingsPage(title = "Controles", left = { BigIcon(Icons.Sliders) }) {
-        SectionLabel("Controles del encabezado")
-        p.controls.forEachIndexed { i, id ->
-            key(id) {
-                val (label, icon) = controlInfo(id)
-                val hidden = id != CONTROL_CUSTOM && id in p.hiddenControls
-                ManageRow(label, leading = { Icon(icon, Color.White, 22.dp) }, dimmed = hidden) {
-                    if (id != CONTROL_CUSTOM) {
-                        CircleButton(if (hidden) Icons.EyeOff else Icons.Eye, Modifier.restorableFocus("controls", "eye_$id", default = i == 0),
-                            iconTint = if (hidden) Color(0xFFFF8A7A) else null) {
-                            app.store.update { it.copy(hiddenControls = if (hidden) it.hiddenControls - id else it.hiddenControls + id) }
-                        }
-                    }
-                    if (i > 0) CircleButton(Icons.Up, Modifier.restorableFocus("controls", "up_$id", default = i == 0 && id == CONTROL_CUSTOM)) { app.store.update { it.moveControl(id, -1) } }
-                    if (i < p.controls.lastIndex) CircleButton(Icons.Down, Modifier.restorableFocus("controls", "down_$id", default = i == 0 && id == CONTROL_CUSTOM)) { app.store.update { it.moveControl(id, 1) } }
-                }
-            }
-        }
-        InfoBlock("Personalizaciones siempre está visible para que puedas volver a esta configuración.")
-    }
-}
 
 @Composable
 internal fun MiniTile(app: SimpleApp, e: AppEntry, mode: IconMode) {
@@ -179,12 +119,23 @@ fun AppsScreen(app: SimpleApp) {
     val apps by app.repo.apps.collectAsState()
     val all = remember(apps, p.orderMode, p.customOrder) { orderApps(apps, p) }
     SettingsPage(title = "Aplicaciones", subtitle = "${apps.size} instaladas · ${p.hidden.size} ocultas", left = { BigIcon(Icons.Grid) }) {
+        SectionLabel("Orden")
+        OrderMode.entries.forEachIndexed { i, m ->
+            val sub = when (m) {
+                OrderMode.ALPHA -> "De la A a la Z"
+                OrderMode.CUSTOM -> "Tu propio orden (usa las flechas de abajo o Mover)"
+                OrderMode.RECENT -> "Las instaladas más recientemente primero"
+            }
+            RadioRow(m.label, p.orderMode == m, Modifier.restorableFocus("apps", "order_${m.name}", default = i == 0), subtitle = sub) {
+                app.store.update { it.copy(orderMode = m) }
+            }
+        }
         SectionLabel("Tus aplicaciones")
         all.forEachIndexed { i, e ->
             key(e.pkg) {
                 val hidden = e.pkg in p.hidden
                 ManageRow(e.label, leading = { MiniTile(app, e, p.iconMode(e.pkg)) }, dimmed = hidden) {
-                    CircleButton(if (hidden) Icons.EyeOff else Icons.Eye, Modifier.restorableFocus("apps", "eye_${e.pkg}", default = i == 0),
+                    CircleButton(if (hidden) Icons.EyeOff else Icons.Eye, Modifier.restorableFocus("apps", "eye_${e.pkg}"),
                         iconTint = if (hidden) Color(0xFFFF8A7A) else null) {
                         app.store.update { it.toggleHidden(e.pkg) }
                     }

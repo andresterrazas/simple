@@ -24,6 +24,7 @@ class SimpleApp : Application() {
     lateinit var store: PrefsStore
     lateinit var repo: AppRepository
     lateinit var wallpapers: WallpaperEngine
+    lateinit var weather: com.andresterrazas.simple.data.WeatherRepo
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var refreshJob: Job? = null
 
@@ -34,6 +35,7 @@ class SimpleApp : Application() {
         repo = AppRepository(this)
         wallpapers = WallpaperEngine(this)
         repo.loadCachedList()
+        weather = com.andresterrazas.simple.data.WeatherRepo(this)
         store.state.value.let { wallpapers.loadCached(it.wallpaper, it.blur) }
 
         scope.launch {
@@ -43,6 +45,23 @@ class SimpleApp : Application() {
         scope.launch {
             store.state.map { it.wallpaper to it.blur }.distinctUntilChanged().collectLatest { (id, blur) ->
                 runCatching { wallpapers.render(id, blur) }
+            }
+        }
+        // Clima: se actualiza al cambiar la configuración y cada 30 minutos mientras esté visible.
+        scope.launch {
+            store.state.map { Triple(it.weatherStyle, it.weatherPlace, it.tempUnit) }.distinctUntilChanged().collectLatest { (style, place, unit) ->
+                if (style == com.andresterrazas.simple.data.WeatherStyle.OFF) return@collectLatest
+                while (true) {
+                    val ok = weather.refresh(place, unit)
+                    delay(if (ok) 30 * 60_000L else 5 * 60_000L)
+                }
+            }
+        }
+        // Cambio automático de fondo entre las fotos subidas.
+        scope.launch {
+            while (true) {
+                runCatching { checkRotation() }
+                delay(30_000)
             }
         }
         registerPackageReceiver()
@@ -58,6 +77,46 @@ class SimpleApp : Application() {
         wnJob = scope.launch {
             delay(300)
             com.andresterrazas.simple.home.WatchNext.refresh(this@SimpleApp)
+        }
+    }
+
+    private fun rotationKey(p: com.andresterrazas.simple.data.Prefs, now: Long): String? {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        val y = cal.get(java.util.Calendar.YEAR)
+        return when (p.rotateMode) {
+            com.andresterrazas.simple.data.RotateMode.OFF -> null
+            com.andresterrazas.simple.data.RotateMode.HOURLY -> "h$y-${cal.get(java.util.Calendar.DAY_OF_YEAR)}-${cal.get(java.util.Calendar.HOUR_OF_DAY)}"
+            com.andresterrazas.simple.data.RotateMode.DAILY -> "d$y-${cal.get(java.util.Calendar.DAY_OF_YEAR)}"
+            com.andresterrazas.simple.data.RotateMode.WEEKLY -> "w${cal.get(java.util.Calendar.YEAR)}-${cal.get(java.util.Calendar.WEEK_OF_YEAR)}"
+            com.andresterrazas.simple.data.RotateMode.MONTHLY -> "m$y-${cal.get(java.util.Calendar.MONTH)}"
+            com.andresterrazas.simple.data.RotateMode.CUSTOM -> {
+                val ms = p.rotateValue.coerceAtLeast(1) * p.rotateUnit.minutes * 60_000L
+                // Alineado a la hora local para que "cada 6 horas" cambie a horas redondas.
+                val offset = java.util.TimeZone.getDefault().getOffset(now)
+                "c${p.rotateUnit.name}${p.rotateValue}-${(now + offset) / ms}"
+            }
+        }
+    }
+
+    /** Fotos subidas, en el orden en que se subieron. */
+    fun rotationPool(): List<String> = wallpapers.userWallpapers().sorted()
+
+    private fun checkRotation() {
+        val p = store.state.value
+        val key = rotationKey(p, System.currentTimeMillis()) ?: return
+        if (p.rotateKey.isEmpty()) { store.update { it.copy(rotateKey = key) }; return }
+        if (key != p.rotateKey) rotateNow(key)
+    }
+
+    /** Cambia al siguiente fondo de la rotación (o a uno al azar). */
+    fun rotateNow(newKey: String? = null) {
+        val pool = rotationPool()
+        store.update { p ->
+            if (pool.size < 2) return@update p.copy(rotateKey = newKey ?: p.rotateKey)
+            val idx = pool.indexOf(p.wallpaper)
+            val next = if (p.rotateShuffle) pool.filter { it != p.wallpaper }.random()
+            else pool[(idx + 1).mod(pool.size)]
+            p.copy(wallpaper = next, rotateKey = newKey ?: p.rotateKey)
         }
     }
 

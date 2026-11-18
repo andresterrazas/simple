@@ -80,6 +80,14 @@ object Icons {
     val Dock = build("dock", "M3 14h18a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z", "M6 17h2", "M11 17h2", "M16 17h2", "M12 4v6", "M9 7l3 3 3-3")
     val Moon = build("moon", "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z")
     val Power = build("power", "M12 3v8", "M6.3 6.3a8 8 0 1 0 11.4 0")
+    val Sun = build("sun", circ(12f, 12f, 4f), "M12 2v2", "M12 20v2", "M4.9 4.9l1.4 1.4", "M17.7 17.7l1.4 1.4", "M2 12h2", "M20 12h2", "M4.9 19.1l1.4-1.4", "M17.7 6.3l1.4-1.4")
+    val Cloud = build("cloud", "M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 18z")
+    val CloudSun = build("cloudsun", "M8 19h9a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.4A2.8 2.8 0 0 0 8 19z", "M7 3v1.5", "M2.8 7h1.5", "M3.8 3.8l1 1", "M10.2 3.8l-1 1", "M9.6 9.4a3.5 3.5 0 1 0-5 2.8")
+    val Rain = build("rain", "M7 14h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 14z", "M8 17l-1 3", "M12 17l-1 3", "M16 17l-1 3")
+    val Snow = build("snow", "M7 14h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 14z", "M8 18h.01", "M12 18h.01", "M16 18h.01", "M10 21h.01", "M14 21h.01")
+    val Storm = build("storm", "M7 14h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.6A3.3 3.3 0 0 0 7 14z", "M12 14l-2 4h4l-2 4")
+    val Fog = build("fog", "M4 9h16", "M3 13h18", "M5 17h14")
+    val Pin = build("pin", "M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z", circ(12f, 10f, 2f))
     val Refresh = build("refresh", "M20 12a8 8 0 1 1-2.3-5.7", "M20 4v5h-5")
 }
 
@@ -91,4 +99,14 @@ fun Icon(icon: ImageVector, tint: Color, size: Dp = 22.dp, modifier: Modifier = 
         colorFilter = ColorFilter.tint(tint),
         modifier = modifier.size(size),
     )
+}
+
+fun skyIcon(sky: com.andresterrazas.simple.data.Sky, day: Boolean): ImageVector = when (sky) {
+    com.andresterrazas.simple.data.Sky.CLEAR -> if (day) Icons.Sun else Icons.Moon
+    com.andresterrazas.simple.data.Sky.PARTLY -> if (day) Icons.CloudSun else Icons.Cloud
+    com.andresterrazas.simple.data.Sky.CLOUDY -> Icons.Cloud
+    com.andresterrazas.simple.data.Sky.FOG -> Icons.Fog
+    com.andresterrazas.simple.data.Sky.DRIZZLE, com.andresterrazas.simple.data.Sky.RAIN -> Icons.Rain
+    com.andresterrazas.simple.data.Sky.SNOW -> Icons.Snow
+    com.andresterrazas.simple.data.Sky.STORM -> Icons.Storm
 }

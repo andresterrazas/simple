@@ -173,6 +173,10 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     var pendingFocus by remember { mutableStateOf<String?>(null) }
 
     val visibleControls = prefs.controls.filter { it == CONTROL_CUSTOM || it !in prefs.hiddenControls }
+    val weatherNow by app.weather.now.collectAsState()
+    // Con el estilo "Con pronóstico" la hora se vuelve enfocable y abre el pronóstico del día.
+    val clockFocusable = prefs.weatherStyle == com.andresterrazas.simple.data.WeatherStyle.DETAILED && weatherNow != null
+    val headerIds = if (clockFocusable) listOf(CLOCK_ID) + visibleControls else visibleControls
 
     val showRecs = prefs.showRecs
     val recs by Recs.items.collectAsState()
@@ -213,7 +217,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
         return p?.let { fr(it) }
     }
     fun headerTarget(): FocusRequester? {
-        val id = memory[1]?.takeIf { it in visibleControls } ?: visibleControls.firstOrNull()
+        val id = memory[1]?.takeIf { it in headerIds } ?: headerIds.firstOrNull { it != CLOCK_ID } ?: headerIds.firstOrNull()
         return id?.let { hfr(it) }
     }
 
@@ -423,8 +427,10 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
         HeaderBar(
             prefs = prefs,
             controls = visibleControls,
+            weather = weatherNow,
+            clockFocusable = clockFocusable,
             enabled = !expandedVisual,
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = headerTop).width(safeW).height(headerH)
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = headerTop).width(safeW)
                 .graphicsLayer {
                     alpha = headerAlpha
                     translationY = -(1f - headerAlpha) * 24.dp.toPx()

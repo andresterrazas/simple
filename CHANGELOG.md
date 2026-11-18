@@ -2,6 +2,11 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.0.21
+- Clima en el encabezado (compacto o con pronóstico), ubicación automática o por ciudad.
+- Cambio automático de fondo entre las fotos subidas.
+- Configuración reorganizada: Controles del encabezado agrupa fecha, hora, clima y botones; el orden de apps vive en Aplicaciones.
+
 ## v1.0.20
 - Perfil de arranque, lista de apps en caché y fondo inmediato al abrir.
 - Inicio dentro de simple siempre regresa al dock.

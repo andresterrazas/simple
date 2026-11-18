@@ -112,6 +112,8 @@ import java.util.Locale
 internal fun HeaderBar(
     prefs: Prefs,
     controls: List<String>,
+    weather: com.andresterrazas.simple.data.WeatherNow?,
+    clockFocusable: Boolean,
     enabled: Boolean,
     modifier: Modifier,
     requester: (String) -> FocusRequester,
@@ -123,29 +125,54 @@ internal fun HeaderBar(
     val style = LocalStyle.current
     val connected = rememberConnected()
     val now = rememberNow()
-    Row(modifier, horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+    val showWeather = prefs.weatherStyle != com.andresterrazas.simple.data.WeatherStyle.OFF && weather != null
+    val ids = if (clockFocusable) listOf(CLOCK_ID) + controls else controls
+    var clockFocused by remember { mutableStateOf(false) }
+    fun focusMod(id: String) = Modifier
+        .focusRequester(requester(id))
+        .focusProperties {
+            canFocus = enabled
+            up = FocusRequester.Cancel
+            val i = ids.indexOf(id)
+            if (i == 0) left = FocusRequester.Cancel
+            if (i == ids.lastIndex) right = FocusRequester.Cancel
+            down = downTarget() ?: FocusRequester.Cancel
+        }
+        .onFocusChanged { if (it.isFocused) onFocused(id) }
+
+    Column(modifier, horizontalAlignment = Alignment.End) {
         Row(
-            Modifier.glass(CircleShape, style.panel).padding(start = if (prefs.clockMode == ClockMode.HIDDEN) 6.dp else 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            Modifier.glass(CircleShape, style.panel).padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (prefs.clockMode != ClockMode.HIDDEN) {
-                val time = SimpleDateFormat(if (DateFormat.is24HourFormat(ctx)) "HH:mm" else "h:mm", Locale.getDefault()).format(now)
-                val text = if (prefs.clockMode == ClockMode.TIME_DATE) "$time  •  ${prefs.dateStyle.format(now)}" else time
-                BasicText(text, style = ts(18.sp, FontWeight.Bold), modifier = Modifier.padding(end = 8.dp))
-            }
-            controls.forEachIndexed { i, id ->
-                key(id) {
-                    val m = Modifier
-                        .focusRequester(requester(id))
-                        .focusProperties {
-                            canFocus = enabled
-                            up = FocusRequester.Cancel
-                            if (i == 0) left = FocusRequester.Cancel
-                            if (i == controls.lastIndex) right = FocusRequester.Cancel
-                            down = downTarget() ?: FocusRequester.Cancel
+            if (prefs.clockMode != ClockMode.HIDDEN || showWeather) {
+                val bg by androidx.compose.animation.animateColorAsState(
+                    if (clockFocused) style.focusedFill else Color.Transparent, tween(140), label = "clockBg",
+                )
+                val fg = if (clockFocused) style.focusedText else Color.White
+                Row(
+                    (if (clockFocusable) focusMod(CLOCK_ID).onFocusChanged { clockFocused = it.isFocused }.focusable() else Modifier)
+                        .clip(CircleShape).background(bg).padding(start = 14.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (showWeather) {
+                        Icon(skyIcon(weather!!.sky, weather.day), fg, 20.dp)
+                        BasicText("${weather.temp}°", style = ts(18.sp, FontWeight.Bold, fg), modifier = Modifier.padding(start = 6.dp))
+                        if (prefs.clockMode != ClockMode.HIDDEN) {
+                            BasicText("•", style = ts(14.sp, FontWeight.Bold, fg.copy(alpha = 0.6f)), modifier = Modifier.padding(horizontal = 10.dp))
                         }
-                        .onFocusChanged { if (it.isFocused) onFocused(id) }
+                    }
+                    if (prefs.clockMode != ClockMode.HIDDEN) {
+                        val time = SimpleDateFormat(if (DateFormat.is24HourFormat(ctx)) "HH:mm" else "h:mm", Locale.getDefault()).format(now)
+                        val text = if (prefs.clockMode == ClockMode.TIME_DATE) "$time  •  ${prefs.dateStyle.format(now)}" else time
+                        BasicText(text, style = ts(18.sp, FontWeight.Bold, fg))
+                    }
+                }
+            }
+            controls.forEach { id ->
+                key(id) {
+                    val m = focusMod(id)
                     when (id) {
                         CONTROL_CUSTOM -> CircleButton(Icons.Sliders, m, size = 42, onClick = onCustom)
                         CONTROL_SETTINGS -> CircleButton(Icons.Gear, m, size = 42) { SystemActions.openSettings(ctx) }
@@ -153,6 +180,46 @@ internal fun HeaderBar(
                             iconTint = if (connected) null else Color(0xFFFFB4A8)) { SystemActions.openWifi(ctx) }
                         CONTROL_STORE -> CircleButton(Icons.Store, m, size = 42) { SystemActions.openStoreHome(ctx) }
                     }
+                }
+            }
+        }
+        // Pronóstico del día: aparece al posarse en la hora (estilo "Con pronóstico").
+        AnimatedVisibility(
+            visible = clockFocused && weather != null,
+            enter = fadeIn(tween(200)) + slideInVertically(tween(260)) { -it / 8 },
+            exit = fadeOut(tween(140)),
+        ) {
+            weather?.let { ForecastCard(it, prefs.tempUnit) }
+        }
+    }
+}
+
+const val CLOCK_ID = "clock"
+
+@Composable
+private fun ForecastCard(w: com.andresterrazas.simple.data.WeatherNow, unit: com.andresterrazas.simple.data.TempUnit) {
+    val style = LocalStyle.current
+    Row(
+        Modifier.padding(top = 10.dp).glass(RoundedCornerShape(24.dp), style.panelStrong).padding(horizontal = 22.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(skyIcon(w.sky, w.day), Color.White, 34.dp)
+            BasicText("${w.temp}${unit.symbol}", style = ts(26.sp, FontWeight.Bold), modifier = Modifier.padding(top = 4.dp))
+            BasicText(com.andresterrazas.simple.data.WeatherRepo.label(w.sky), style = ts(12.sp, FontWeight.Medium, Color.White.copy(alpha = 0.8f)))
+        }
+        Column {
+            BasicText(w.place, style = ts(15.sp, FontWeight.Bold), maxLines = 1)
+            BasicText("Máx ${w.max}° · Mín ${w.min}°", style = ts(13.sp, FontWeight.Medium, Color.White.copy(alpha = 0.85f)), modifier = Modifier.padding(top = 4.dp))
+            BasicText("Lluvia ${w.rainChance} %", style = ts(13.sp, FontWeight.Medium, Color.White.copy(alpha = 0.85f)), modifier = Modifier.padding(top = 2.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            w.hours.forEach { h ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    BasicText("${h.hour} h", style = ts(12.sp, FontWeight.SemiBold, Color.White.copy(alpha = 0.75f)))
+                    Icon(skyIcon(h.sky, h.day), Color.White, 22.dp, Modifier.padding(vertical = 6.dp))
+                    BasicText("${h.temp}°", style = ts(14.sp, FontWeight.Bold))
                 }
             }
         }

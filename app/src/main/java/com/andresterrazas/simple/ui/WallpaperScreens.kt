@@ -144,6 +144,10 @@ fun WallpaperScreen(app: SimpleApp, nav: Nav) {
         }
         SettingRow("Desenfoque", Modifier.restorableFocus(s, "blur"), icon = Icons.ImageIc, value = blurLabel(p.blur)) { nav.push(Screen.Blur) }
 
+        SectionLabel("Cambio automático")
+        SettingRow("Cambiar fondo automáticamente", Modifier.restorableFocus(s, "rotate"), icon = Icons.Refresh,
+            value = p.rotateMode.label) { nav.push(Screen.Rotate) }
+
         SectionLabel("Origen")
         SettingRow("Subir foto desde el celular", Modifier.restorableFocus(s, "upload"), icon = Icons.Phone,
             subtitle = "Escanea un código QR y elige una foto") { nav.push(Screen.Upload) }
@@ -217,3 +221,58 @@ fun UploadScreen(app: SimpleApp, nav: Nav) {
         SettingRow("Listo", Modifier.restorableFocus("upload", "done", default = true), icon = Icons.Check) { nav.pop() }
     }
 }
+
+
+@Composable
+fun RotateScreen(app: SimpleApp) {
+    val p by app.store.state.collectAsState()
+    val ctx = LocalContext.current
+    val pool = remember(p.wallpaper, p.rotateMode) { app.rotationPool() }
+    val s = "rotate"
+    SettingsPage(title = "Cambio automático", subtitle = "Entre las fotos que subiste", left = { WallpaperPreview(app) }) {
+        if (pool.size < 2) {
+            InfoBlock("Necesitas al menos 2 fotos subidas desde el celular (Fondo › Subir foto desde el celular). Ahora tienes ${pool.size}.")
+        } else {
+            InfoBlock("Se alternarán tus ${pool.size} fotos subidas.")
+        }
+        SectionLabel("Frecuencia")
+        com.andresterrazas.simple.data.RotateMode.entries.forEach { m ->
+            RadioRow(m.label, p.rotateMode == m, Modifier.restorableFocus(s, m.name, default = p.rotateMode == m)) {
+                app.store.update { it.copy(rotateMode = m, rotateKey = "") }
+            }
+        }
+        if (p.rotateMode == com.andresterrazas.simple.data.RotateMode.CUSTOM) {
+            SectionLabel("Cada cuánto")
+            val unitName = if (p.rotateValue == 1) p.rotateUnit.singular else p.rotateUnit.label
+            ManageRow("Cada ${p.rotateValue} $unitName", leading = { Icon(Icons.Clock, Color.White, 22.dp) }, dimmed = false) {
+                CircleButton(Icons.Minus, Modifier.restorableFocus(s, "minus")) {
+                    app.store.update { it.copy(rotateValue = (it.rotateValue - stepFor(it.rotateValue, false)).coerceAtLeast(1), rotateKey = "") }
+                }
+                CircleButton(Icons.Plus, Modifier.restorableFocus(s, "plus")) {
+                    app.store.update { it.copy(rotateValue = (it.rotateValue + stepFor(it.rotateValue, true)).coerceAtMost(99), rotateKey = "") }
+                }
+            }
+            com.andresterrazas.simple.data.RotateUnit.entries.forEach { u ->
+                RadioRow(u.label.replaceFirstChar { it.uppercase() }, p.rotateUnit == u, Modifier.restorableFocus(s, "u_${u.name}")) {
+                    app.store.update { it.copy(rotateUnit = u, rotateKey = "") }
+                }
+            }
+        }
+        if (p.rotateMode != com.andresterrazas.simple.data.RotateMode.OFF) {
+            SectionLabel("Opciones")
+            ToggleRow("Orden aleatorio", p.rotateShuffle, Modifier.restorableFocus(s, "shuffle"),
+                subtitle = if (p.rotateShuffle) "Una foto distinta al azar cada vez" else "En el orden en que las subiste") {
+                app.store.update { it.copy(rotateShuffle = !it.rotateShuffle) }
+            }
+        }
+        if (pool.size >= 2) {
+            SettingRow("Cambiar ahora", Modifier.restorableFocus(s, "now"), icon = Icons.Refresh, subtitle = "Pasa a la siguiente foto") {
+                app.rotateNow()
+                Toast.makeText(ctx, "Fondo cambiado", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+
+/** Pasos cómodos con el control: de 1 en 1 hasta 10, luego de 5 en 5. */
+private fun stepFor(v: Int, up: Boolean) = if ((up && v >= 10) || (!up && v > 10)) 5 else 1

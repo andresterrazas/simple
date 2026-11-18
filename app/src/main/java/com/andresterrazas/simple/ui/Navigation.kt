@@ -12,11 +12,11 @@ sealed interface Screen {
     data class IconPicker(val pkg: String) : Screen
     data object Settings : Screen
     data object Setup : Screen
-    data object Order : Screen
-    data object Clock : Screen
     data object Controls : Screen
     data object Wallpaper : Screen
     data object Dock : Screen
+    data object WeatherPlace : Screen
+    data object Rotate : Screen
     data object RecsSettings : Screen
     data class IconUpload(val pkg: String) : Screen
     data object Blur : Screen
