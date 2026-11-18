@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -25,6 +26,32 @@ object DefaultHome {
     private val events = ArrayDeque<String>()
 
     fun component(ctx: Context) = ComponentName(ctx, HomeService::class.java)
+
+    val isFireTv: Boolean get() = Build.MANUFACTURER.equals("Amazon", ignoreCase = true)
+
+    @Volatile private var stockCache: Set<String>? = null
+
+    /** Launchers del sistema instalados (Amazon, Google TV, Android TV, PatchWall de Xiaomi…), excepto simple. */
+    fun stockHomes(ctx: Context): Set<String> {
+        stockCache?.let { return it }
+        val pm = ctx.packageManager
+        val homes = runCatching {
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
+                .mapNotNull { it.activityInfo?.packageName }
+        }.getOrDefault(emptyList())
+        val set = (homes + AMAZON_LAUNCHER).filter { it != ctx.packageName && it != "com.android.settings" && it != "com.android.tv.settings" }.toSet()
+        stockCache = set
+        return set
+    }
+
+    /** ¿simple es el inicio predeterminado del sistema (Android TV / Google TV)? */
+    fun isDefaultHome(ctx: Context): Boolean = runCatching {
+        ctx.packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo?.packageName == ctx.packageName
+    }.getOrDefault(false)
+
+    fun setHomeAdbCommand(ctx: Context) =
+        "adb shell cmd package set-home-activity ${ctx.packageName}/${MainActivity::class.java.name}"
 
     fun log(line: String) {
         synchronized(events) {
@@ -161,7 +188,7 @@ class HomeService : AccessibilityService() {
      */
     private fun amazonHomeVisible(): Boolean {
         val root = runCatching { rootInActiveWindow }.getOrNull() ?: return false
-        if (root.packageName?.toString() != DefaultHome.AMAZON_LAUNCHER) return false
+        if (root.packageName?.toString() !in DefaultHome.stockHomes(this)) return false
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
         var visited = 0
@@ -202,7 +229,7 @@ class HomeService : AccessibilityService() {
         val title = event.text?.firstOrNull()?.toString()?.take(40).orEmpty()
         DefaultHome.log("$pkg · ${cls.substringAfterLast('.')}${if (title.isNotBlank()) " · \"$title\"" else ""}")
         DefaultHome.onForeground(pkg, packageName)
-        if (pkg != DefaultHome.AMAZON_LAUNCHER) return
+        if (DefaultHome.isDefaultHome(this) || pkg !in DefaultHome.stockHomes(this)) return
         if (DefaultHome.sessionActive()) startPolling()
         if (DefaultHome.shouldIntercept(cls, title, mode())) launchSimple("ventana de inicio")
     }

@@ -150,6 +150,8 @@ fun SetupScreen(app: SimpleApp, nav: Nav) {
             subtitle = if (enabled) "Al presionar Inicio en el control se abrirá simple" else "Activa el servicio de simple con alguna de estas opciones",
         ) { if (!enabled && canWrite) DefaultHome.enableViaSecure(ctx) }
 
+        if (!DefaultHome.isFireTv) DefaultHomeSection(s)
+
         if (canWrite && !enabled) {
             SettingRow("Activar automáticamente", Modifier.restorableFocus(s, "auto"), icon = Icons.Check, subtitle = "simple tiene permiso para activarse solo") {
                 val ok = DefaultHome.enableViaSecure(ctx)
@@ -157,7 +159,7 @@ fun SetupScreen(app: SimpleApp, nav: Nav) {
             }
         }
 
-        SectionLabel("Opción 1 · Desde el Fire TV")
+        SectionLabel(if (DefaultHome.isFireTv) "Opción 1 · Desde el Fire TV" else "Respaldo · Servicio de accesibilidad")
         SettingRow("Abrir Accesibilidad", Modifier.restorableFocus(s, "a11y"), icon = Icons.Person,
             subtitle = "Busca simple y actívalo. Si no aparece en la lista, usa la opción 2.") { SystemActions.openAccessibility(ctx) }
 
@@ -640,18 +642,67 @@ fun RecsScreen(app: SimpleApp) {
                 if (enabled && recs.isEmpty()) "\nAbre y usa algunas apps (YouTube, Prime Video, Plex…); las que publiquen sugerencias aparecerán aquí." else ""
         )
         if (!enabled) {
+            SettingRow("Abrir acceso a notificaciones", Modifier.restorableFocus(s, "access"), icon = Icons.Gear,
+                subtitle = "Busca simple y permítelo (en algunas TV está en Apps › Acceso especial)") {
+                val ok = runCatching {
+                    ctx.startActivity(android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true
+                }.getOrDefault(false)
+                if (!ok) Toast.makeText(ctx, "Tu TV no tiene esa pantalla; usa el comando de ADB", Toast.LENGTH_LONG).show()
+            }
             if (DefaultHome.canWriteSecure(ctx)) {
                 SettingRow("Activar ahora", Modifier.restorableFocus(s, "enable"), icon = Icons.Check) {
                     val ok = com.andresterrazas.simple.home.Recs.enableViaSecure(ctx)
                     Toast.makeText(ctx, if (ok) "Listo" else "No se pudo activar", Toast.LENGTH_SHORT).show()
                 }
             } else {
-                InfoBlock("Se activa una sola vez por ADB, igual que el botón Inicio:")
+                InfoBlock("O una sola vez por ADB:")
                 InfoBlock(com.andresterrazas.simple.home.Recs.adbCommand(ctx), mono = true)
             }
+        }
+        if (!DefaultHome.isFireTv) {
+            InfoBlock("En Android TV y Google TV la mayoría de las apps envían su \"seguir viendo\" directo a Google, no al sistema, así que esta fila puede quedar vacía en esta TV.")
         }
         SectionLabel("Qué apps envían información")
         InfoBlock(if (seen.isEmpty()) "Nada todavía." else seen.joinToString("\n"), mono = true)
         InfoBlock("simple solo lee las sugerencias que las apps publican para el inicio de TV; no lee mensajes ni datos personales, y nada sale de tu Fire TV.")
     }
+}
+
+/** Android TV / Google TV (Xiaomi, Sony, TCL…): ahí sí existe el "inicio predeterminado" del sistema. */
+@Composable
+private fun DefaultHomeSection(scope: String) {
+    val ctx = LocalContext.current
+    val isDefault by produceState(DefaultHome.isDefaultHome(ctx)) {
+        while (true) { value = DefaultHome.isDefaultHome(ctx); delay(1000) }
+    }
+    SectionLabel("Inicio predeterminado del sistema")
+    SettingRow(
+        if (isDefault) "simple es el inicio predeterminado" else "Elegir simple como inicio predeterminado",
+        Modifier.restorableFocus(scope, "role"),
+        icon = if (isDefault) Icons.Check else Icons.Home,
+        subtitle = if (isDefault) "Tu TV abre simple al presionar Inicio, sin trucos" else "Tu TV te pedirá confirmar; elige simple",
+    ) { if (!isDefault) requestDefaultHome(ctx) }
+    if (!isDefault) {
+        InfoBlock("Si tu TV no muestra la opción, conéctate por ADB y ejecuta:")
+        InfoBlock(DefaultHome.setHomeAdbCommand(ctx), mono = true)
+        InfoBlock("Mientras tanto, el servicio de accesibilidad de abajo también funciona como respaldo.")
+    }
+}
+
+private fun requestDefaultHome(ctx: android.content.Context) {
+    val activity = ctx as? android.app.Activity
+    fun tryStart(i: android.content.Intent): Boolean = runCatching {
+        if (activity != null) activity.startActivityForResult(i, 42)
+        else ctx.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    }.getOrDefault(false)
+    if (Build.VERSION.SDK_INT >= 29) {
+        val rm = ctx.getSystemService(android.app.role.RoleManager::class.java)
+        if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_HOME) &&
+            tryStart(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_HOME))) return
+    }
+    if (tryStart(android.content.Intent(android.provider.Settings.ACTION_HOME_SETTINGS))) return
+    // Último recurso: el selector de inicio del sistema (con la opción "Siempre").
+    val chooser = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME)
+    if (!tryStart(chooser)) Toast.makeText(ctx, "Tu TV no permite elegirlo desde aquí; usa el comando de ADB", Toast.LENGTH_LONG).show()
 }
