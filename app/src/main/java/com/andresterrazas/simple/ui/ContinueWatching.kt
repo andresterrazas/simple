@@ -115,6 +115,7 @@ internal fun ContinueRow(
     recs: List<com.andresterrazas.simple.home.Rec>,
     cardW: Dp,
     cardH: Dp,
+    style: com.andresterrazas.simple.data.RecStyle = com.andresterrazas.simple.data.RecStyle.WIDE,
     enabled: Boolean,
     requester: (String) -> FocusRequester,
     onFocused: (String) -> Unit,
@@ -132,7 +133,8 @@ internal fun ContinueRow(
         ) {
             recs.forEachIndexed { i, r ->
                 key(r.key) {
-                    ContinueCard(
+                    RecCard(
+                        style = style,
                         rec = r,
                         appLabel = apps.firstOrNull { it.pkg == r.pkg }?.label.orEmpty(),
                         width = cardW,
@@ -173,6 +175,7 @@ internal fun RecsOverlay(
     apps: List<AppEntry>,
     cardW: Dp,
     cardH: Dp,
+    style: com.andresterrazas.simple.data.RecStyle,
     modifier: Modifier,
     requester: (String) -> FocusRequester,
     onFocused: (String) -> Unit,
@@ -202,6 +205,7 @@ internal fun RecsOverlay(
                 recs = list.filter { com.andresterrazas.simple.home.Recs.samePackage(it.pkg, pkg) },
                 cardW = cardW,
                 cardH = cardH,
+                style = style,
                 enabled = true,
                 requester = requester,
                 onFocused = onFocused,
@@ -210,6 +214,21 @@ internal fun RecsOverlay(
             )
         }
     }
+}
+
+@Composable
+internal fun RecCard(
+    style: com.andresterrazas.simple.data.RecStyle,
+    rec: com.andresterrazas.simple.home.Rec,
+    appLabel: String,
+    width: Dp,
+    height: Dp,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) = when (style) {
+    com.andresterrazas.simple.data.RecStyle.CLASSIC -> ClassicCard(rec, width, height, modifier, onClick)
+    com.andresterrazas.simple.data.RecStyle.WIDE -> ContinueCard(rec, appLabel, width, height, modifier, onClick)
+    com.andresterrazas.simple.data.RecStyle.POSTER -> PosterCard(rec, width, height, modifier, onClick)
 }
 
 /** Línea secundaria corta: "T5 E4 · faltan 23 min", o el subtítulo si la app no da episodio. */
@@ -299,5 +318,120 @@ internal fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: Str
                 Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(3.dp).clip(CircleShape).background(fg))
             }
         }
+    }
+}
+
+/** Barra de progreso fina compartida por los tres estilos. */
+@Composable
+private fun RecProgress(p: Float, color: Color, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(color.copy(alpha = 0.25f))) {
+        Box(Modifier.fillMaxWidth(p.coerceIn(0.03f, 1f)).height(3.dp).clip(CircleShape).background(color))
+    }
+}
+
+@Composable
+private fun rememberRecImage(rec: com.andresterrazas.simple.home.Rec): androidx.compose.runtime.State<androidx.compose.ui.graphics.ImageBitmap?> {
+    val ctx = LocalContext.current
+    return produceState(rec.image ?: com.andresterrazas.simple.home.RecImages.cached(rec.imageUri), rec.key) {
+        if (value == null && rec.imageUri != null) value = com.andresterrazas.simple.home.RecImages.load(ctx, rec.imageUri)
+    }
+}
+
+/**
+ * Estilo clásico (el de la v1.0): miniatura a la izquierda y texto a la derecha. Optimizado: sin la
+ * etiqueta de la app (ya está en el título de la fila), línea secundaria corta y medidas que garantizan
+ * que título, episodio y barra de progreso siempre quepan en el alto de la tarjeta.
+ */
+@Composable
+internal fun ClassicCard(rec: com.andresterrazas.simple.home.Rec, width: Dp, height: Dp, modifier: Modifier, onClick: () -> Unit) {
+    val style = LocalStyle.current
+    var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (focused) 1.06f else 1f, spring(dampingRatio = 0.82f, stiffness = 600f), label = "cardScale")
+    val bg by androidx.compose.animation.animateColorAsState(
+        if (focused) style.focusedFill else Color.Black.copy(alpha = if (style.dark) 0.42f else 0.26f), tween(160), label = "cardBg",
+    )
+    val fg = if (focused) style.focusedText else Color.White
+    val image by rememberRecImage(rec)
+    val meta = remember(rec) { recMeta(rec) }
+    val shape = RoundedCornerShape(18.dp)
+    val pad = 8.dp
+    val thumbH = height - pad * 2
+    val thumbW = minOf(thumbH * 16f / 9f, width * 0.44f)
+    Row(
+        modifier
+            .zIndex(if (focused) 1f else 0f)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .size(width, height)
+            .glass(shape, bg)
+            .border(1.dp, Color.White.copy(alpha = if (focused) 0f else 0.14f), shape)
+            .onFocusChanged { focused = it.isFocused }
+            .dpadActions(onClick)
+            .focusable()
+            .padding(pad),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(thumbW, thumbH).clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.35f))) {
+            image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium) }
+            if (image == null) {
+                BasicText(rec.title.take(1).uppercase(), style = ts(24.sp, FontWeight.Bold, Color.White.copy(alpha = 0.6f)), modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        Column(Modifier.padding(start = 10.dp, end = 4.dp).weight(1f), verticalArrangement = Arrangement.Center) {
+            BasicText(
+                rec.title, maxLines = if (meta.isBlank() && rec.progress == null) 2 else 1, overflow = TextOverflow.Ellipsis,
+                style = ts(14.sp, FontWeight.Bold, fg).copy(lineHeight = 17.sp),
+            )
+            if (meta.isNotBlank()) {
+                BasicText(meta, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(11.sp, FontWeight.Medium, fg.copy(alpha = 0.72f)), modifier = Modifier.padding(top = 1.dp))
+            }
+            rec.progress?.let { RecProgress(it, fg, Modifier.padding(top = 6.dp)) }
+        }
+    }
+}
+
+/**
+ * Estilo imagen: la miniatura 16:9 ocupa toda la tarjeta, con el título sobre un degradado y la barra
+ * de progreso en la base. Al enfocarla crece y gana un contorno blanco, igual que las apps del dock.
+ */
+@Composable
+internal fun PosterCard(rec: com.andresterrazas.simple.home.Rec, width: Dp, height: Dp, modifier: Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (focused) 1.08f else 1f, spring(dampingRatio = 0.82f, stiffness = 600f), label = "cardScale")
+    val image by rememberRecImage(rec)
+    val meta = remember(rec) { recMeta(rec) }
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        modifier
+            .zIndex(if (focused) 1f else 0f)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .size(width, height)
+            .glass(shape, Color.Black.copy(alpha = 0.35f))
+            .onFocusChanged { focused = it.isFocused }
+            .dpadActions(onClick)
+            .focusable(),
+    ) {
+        image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium) }
+        // Degradado inferior para que el texto se lea sobre cualquier imagen.
+        Box(
+            Modifier.fillMaxSize().background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0.35f to Color.Transparent,
+                    1f to Color.Black.copy(alpha = 0.78f),
+                ),
+            ),
+        )
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 8.dp)) {
+            BasicText(
+                rec.title, maxLines = if (image == null) 2 else 1, overflow = TextOverflow.Ellipsis,
+                style = ts(13.sp, FontWeight.Bold, Color.White).copy(
+                    shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.5f), blurRadius = 6f),
+                ),
+            )
+            if (meta.isNotBlank()) {
+                BasicText(meta, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(10.5.sp, FontWeight.Medium, Color.White.copy(alpha = 0.8f)), modifier = Modifier.padding(top = 1.dp))
+            }
+            rec.progress?.let { RecProgress(it, Color.White, Modifier.padding(top = 5.dp)) }
+        }
+        Box(Modifier.fillMaxSize().border(if (focused) 3.dp else 1.dp, Color.White.copy(alpha = if (focused) 1f else 0.16f), shape))
     }
 }

@@ -402,9 +402,27 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
 
         // Continuar viendo de la app enfocada: tarjetas horizontales sobre el dock, alineadas a su borde izquierdo.
         if (hasFavs) {
-            // Tres tarjetas y un asomo de la cuarta; el alto sigue al ancho para que el texto respire.
-            val cardW = ((rowWidth - PANEL_PAD * 2 - 48.dp) / 3.25f).coerceIn(200.dp, 300.dp)
-            val cardH = (cardW * 0.34f).coerceIn(68.dp, 92.dp)
+            // Cada estilo tiene su proporción; el tamaño elegido escala ambas medidas.
+            val avail = rowWidth - PANEL_PAD * 2
+            val f = prefs.recSize.factor
+            val cardW: androidx.compose.ui.unit.Dp
+            val cardH: androidx.compose.ui.unit.Dp
+            when (prefs.recStyle) {
+                com.andresterrazas.simple.data.RecStyle.CLASSIC -> {
+                    cardW = avail * 0.31f * f
+                    cardH = (look.height * 0.78f).coerceAtLeast(64.dp) * f
+                }
+                com.andresterrazas.simple.data.RecStyle.WIDE -> {
+                    // Tres tarjetas y un asomo de la cuarta; el alto sigue al ancho para que el texto respire.
+                    cardW = ((avail - 48.dp) / 3.25f).coerceIn(200.dp, 300.dp) * f
+                    cardH = ((avail - 48.dp) / 3.25f).coerceIn(200.dp, 300.dp).times(0.34f).coerceIn(68.dp, 92.dp) * f
+                }
+                com.andresterrazas.simple.data.RecStyle.POSTER -> {
+                    // Cuatro miniaturas 16:9 y un asomo de la quinta.
+                    cardW = ((avail - 64.dp) / 4.3f).coerceIn(140.dp, 240.dp) * f
+                    cardH = cardW * 9f / 16f
+                }
+            }
             val panelH = 40.dp + cardH
             RecsOverlay(
                 hover = hover,
@@ -413,6 +431,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                 apps = apps,
                 cardW = cardW,
                 cardH = cardH,
+                style = prefs.recStyle,
                 modifier = Modifier
                     .padding(top = (dockTop - panelH - 16.dp).coerceAtLeast(headerTop + headerH))
                     .padding(start = (maxWidth - rowWidth) / 2 + PANEL_PAD - CARD_BLEED)

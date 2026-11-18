@@ -68,6 +68,7 @@ import com.andresterrazas.simple.home.DefaultHome
 import com.andresterrazas.simple.wallpaper.Builtins
 import com.andresterrazas.simple.wallpaper.UploadServer
 import kotlinx.coroutines.delay
+import androidx.compose.ui.focus.focusProperties
 
 // Ajustes y estado de Continuar viendo.
 
@@ -83,11 +84,19 @@ fun RecsScreen(app: SimpleApp) {
         while (true) { value = com.andresterrazas.simple.home.Recs.seenSummary(); delay(1500) }
     }
     val s = "recs"
-    SettingsPage(title = "Continuar viendo", subtitle = "Sugerencias de tus apps", left = { BigIcon(Icons.PlayCircle) }) {
+    SettingsPage(title = "Continuar viendo", subtitle = "Sugerencias de tus apps", left = { RecCardPreview(recs, p.recStyle, p.recSize) }) {
         ToggleRow("Mostrar en el inicio", p.showRecs, Modifier.restorableFocus(s, "show", default = true),
             subtitle = "Al posarte en una app de streaming, muestra lo que dejaste a medias") {
             app.store.update { it.copy(showRecs = !it.showRecs) }
         }
+        SectionLabel("Tarjetas")
+        DropdownRow(
+            "Estilo", com.andresterrazas.simple.data.RecStyle.entries, p.recStyle, { it.label }, s, "style",
+            icon = Icons.ImageIc, optionSubtitle = { it.description },
+        ) { st -> app.store.update { it.copy(recStyle = st) } }
+        DropdownRow(
+            "Tamaño", com.andresterrazas.simple.data.RecSize.entries, p.recSize, { it.label }, s, "size", icon = Icons.TextSize,
+        ) { z -> app.store.update { it.copy(recSize = z) } }
         SectionLabel("Android TV / Google TV · fila del sistema")
         val wn = com.andresterrazas.simple.home.WatchNext
         val wnAvail = remember { wn.available(ctx) }
@@ -147,5 +156,38 @@ fun RecsScreen(app: SimpleApp) {
         SectionLabel("Qué apps envían información")
         InfoBlock(if (seen.isEmpty()) "Nada todavía." else seen.joinToString("\n"), mono = true)
         InfoBlock("simple solo lee las sugerencias que las apps publican para el inicio de TV; no lee mensajes ni datos personales, y nada sale de tu ${com.andresterrazas.simple.home.DefaultHome.tvName}.")
+    }
+}
+
+
+/**
+ * Vista previa de la tarjeta con el estilo y tamaño elegidos. Usa algo que tengas a medias si hay;
+ * si no, una tarjeta de ejemplo. No recibe el foco.
+ */
+@Composable
+private fun RecCardPreview(
+    recs: List<com.andresterrazas.simple.home.Rec>,
+    style: com.andresterrazas.simple.data.RecStyle,
+    size: com.andresterrazas.simple.data.RecSize,
+) {
+    val sample = remember(recs) {
+        recs.firstOrNull { it.progress != null && (it.imageUri != null || it.image != null) }
+            ?: recs.firstOrNull { it.imageUri != null || it.image != null }
+            ?: com.andresterrazas.simple.home.Rec(
+                key = "preview", pkg = "", title = "Tu serie favorita", subtitle = "", image = null, intent = null,
+                time = 0, progress = 0.62f, episode = "T2 E5", remainingMs = 23 * 60_000L,
+            )
+    }
+    val f = size.factor
+    val (w, h) = when (style) {
+        com.andresterrazas.simple.data.RecStyle.CLASSIC -> 250.dp * f to 70.dp * f
+        com.andresterrazas.simple.data.RecStyle.WIDE -> 250.dp * f to 85.dp * f
+        com.andresterrazas.simple.data.RecStyle.POSTER -> 190.dp * f to 190.dp * f * 9f / 16f
+    }
+    androidx.compose.foundation.layout.Box(Modifier.size(320.dp, 140.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        RecCard(
+            style = style, rec = sample, appLabel = "", width = w, height = h,
+            modifier = Modifier.focusProperties { canFocus = false },
+        ) {}
     }
 }

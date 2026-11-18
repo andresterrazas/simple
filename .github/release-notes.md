@@ -1,11 +1,8 @@
 ## Novedades
 
-Primera versión de la serie **1.1**, dedicada a pulir detalles.
-
-- **Tarjetas de Continuar viendo rediseñadas.** La imagen ocupa el lado derecho y se funde con el vidrio, el título usa todo el ancho y la barra de progreso corre por la base de la tarjeta, así que **siempre se ve, también en series**. La línea secundaria ahora es corta: `T5 E4 · faltan 23 min` en lugar del nombre completo del episodio. Las tarjetas se adaptan al ancho del dock.
-- **Menús desplegables.** Los ajustes con varias opciones (formato de fecha, estilo del clima, fondo, ancho, forma y nombres del dock, zoom, desenfoque, frecuencia del cambio de fondo y orden de apps) ahora son una sola fila: presiona OK para desplegarla, elige y se vuelve a plegar. Atrás también la cierra.
-- **Aplicaciones ordenadas por estado.** Las apps visibles aparecen arriba ("En el inicio") y las ocultas abajo ("Ocultas"). Al ocultar o mostrar una, el foco se queda en su lugar para que puedas seguir con la siguiente.
-- **Íconos nuevos** en todos los menús, con un estilo uniforme y sin repetirse. El de los ajustes del sistema ahora es un engrane de verdad.
-- **Textos según el dispositivo.** En una TV que no es Fire TV ya no aparece "Fire TV": se lee "Ajustes de la TV", "Acerca de la TV", etc.
-- **Menús más fluidos.** El desplazamiento ya no se traba al llegar al final de una lista y siempre vuelve completo hasta arriba. El efecto de vidrio ya no parpadea en las filas que salen de la pantalla.
-- Nueva numeración: a partir de aquí las versiones son **1.1.x**.
+- **Los menús desplegables ya funcionan.** En la 1.1.0 se cerraban en el mismo instante en que se abrían: al pasar el foco de la fila a la opción, el menú creía que el foco se había ido. Ahora espera un momento antes de decidirlo, y el foco cae directo en la opción elegida.
+- **Estilo de las tarjetas de Continuar viendo** (Ajustes › Continuar viendo › Tarjetas), con vista previa:
+  - **Panorámica:** el diseño de la 1.1.0, con la imagen fundida en el vidrio y el progreso en la base.
+  - **Clásica:** el diseño de la 1.0 recuperado y optimizado. Sin etiqueta repetida de la app, con línea corta "T5 E4 · faltan 23 min" y medidas que garantizan que la barra de progreso siempre quepa.
+  - **Imagen:** miniatura 16:9 a tarjeta completa con el título encima, como en Apple TV. Al enfocarla crece con contorno blanco, igual que las apps del dock.
+- **Tamaño de las tarjetas:** pequeño, mediano o grande, en cualquiera de los tres estilos.

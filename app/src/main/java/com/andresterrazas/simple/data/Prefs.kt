@@ -85,6 +85,19 @@ enum class FocusZoom(val label: String, val scale: Float) {
     LARGE("Grande", 1.16f),
 }
 
+/** Diseño de las tarjetas de Continuar viendo. */
+enum class RecStyle(val label: String, val description: String) {
+    CLASSIC("Clásica", "Miniatura a la izquierda y texto a la derecha"),
+    WIDE("Panorámica", "Imagen que se funde con el vidrio y progreso en la base"),
+    POSTER("Imagen", "Imagen completa con el título encima, como en Apple TV"),
+}
+
+enum class RecSize(val label: String, val factor: Float) {
+    SMALL("Pequeño", 0.86f),
+    MEDIUM("Mediano", 1.0f),
+    LARGE("Grande", 1.16f),
+}
+
 enum class MenuScale(val label: String, val factor: Float) {
     COMPACT("Compacto", 0.76f),
     NORMAL("Normal", 0.84f),
@@ -152,6 +165,8 @@ data class Prefs(
     val focusOutline: Boolean = true,
     val menuScale: MenuScale = MenuScale.NORMAL,
     val peekRow: Boolean = true,
+    val recStyle: RecStyle = RecStyle.WIDE,
+    val recSize: RecSize = RecSize.MEDIUM,
     val showRecs: Boolean = true,
     val recsHidden: Set<String> = DEFAULT_RECS_HIDDEN,
     val weatherStyle: WeatherStyle = WeatherStyle.COMPACT,
@@ -272,6 +287,8 @@ class PrefsStore(context: Context) {
             focusOutline = sp.getBoolean("focusOutline", d.focusOutline),
             menuScale = enumOr(sp.getString("menuScale", null), d.menuScale),
             peekRow = sp.getBoolean("peekRow", d.peekRow),
+            recStyle = enumOr(sp.getString("recStyle", null), d.recStyle),
+            recSize = enumOr(sp.getString("recSize", null), d.recSize),
             showRecs = sp.getBoolean("showRecs", d.showRecs),
             recsHidden = if (sp.contains("recsHidden")) list("recsHidden").toSet() else d.recsHidden,
             weatherStyle = enumOr(sp.getString("weatherStyle", null), d.weatherStyle),
@@ -310,6 +327,8 @@ class PrefsStore(context: Context) {
             .putBoolean("focusOutline", p.focusOutline)
             .putString("menuScale", p.menuScale.name)
             .putBoolean("peekRow", p.peekRow)
+            .putString("recStyle", p.recStyle.name)
+            .putString("recSize", p.recSize.name)
             .putBoolean("showRecs", p.showRecs)
             .putString("recsHidden", p.recsHidden.joinToString("|"))
             .putString("weatherStyle", p.weatherStyle.name)

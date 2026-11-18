@@ -2,6 +2,10 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.1.1
+- Corrige los menús desplegables (se cerraban al abrirse).
+- Continuar viendo: selector de estilo (Panorámica, Clásica optimizada, Imagen) y de tamaño, con vista previa.
+
 ## v1.1.0
 - Tarjetas de Continuar viendo rediseñadas: imagen a la derecha, título a todo lo ancho, progreso siempre visible en la base y línea corta "T5 E4 · faltan 23 min".
 - Menús desplegables para los ajustes con varias opciones.

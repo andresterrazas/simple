@@ -307,9 +307,24 @@ fun <T> DropdownRow(
     var expanded by remember { mutableStateOf(false) }
     val header = remember { FocusRequester() }
     val selectedFr = remember { FocusRequester() }
+    // Cuántas partes del menú (la fila o una opción) tienen el foco. Al pasar el foco de la fila a una
+    // opción hay un instante en que ninguna lo tiene; por eso el cierre automático espera un poco antes
+    // de decidir que el foco de verdad salió del menú.
+    var focusCount by remember { mutableStateOf(0) }
     val rot by animateFloatAsState(if (expanded) 180f else 0f, spring(dampingRatio = 0.8f, stiffness = 500f), label = "chev")
     LaunchedEffect(expanded) {
-        if (expanded) { withFrameNanos { }; runCatching { selectedFr.requestFocus() } }
+        if (expanded) {
+            // Esperar a que las opciones estén colocadas antes de pasarles el foco.
+            withFrameNanos { }
+            withFrameNanos { }
+            runCatching { selectedFr.requestFocus() }
+        }
+    }
+    LaunchedEffect(focusCount, expanded) {
+        if (expanded && focusCount == 0) {
+            kotlinx.coroutines.delay(150)
+            if (focusCount == 0) expanded = false
+        }
     }
     fun collapse() {
         expanded = false
@@ -317,7 +332,6 @@ fun <T> DropdownRow(
     }
     Column(
         modifier
-            .onFocusChanged { if (!it.hasFocus && expanded) expanded = false }
             .onPreviewKeyEvent { ev ->
                 if (expanded && ev.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK) {
                     if (ev.type == KeyEventType.KeyUp) collapse()
@@ -326,7 +340,7 @@ fun <T> DropdownRow(
             },
     ) {
         SettingRow(
-            title, Modifier.restorableFocus(scope, id, default).focusRequester(header),
+            title, Modifier.restorableFocus(scope, id, default).focusRequester(header).focusCounter { focusCount += it },
             icon = icon, subtitle = subtitle, value = label(selected),
             trailing = { focused ->
                 Spacer(Modifier.width(10.dp))
@@ -346,6 +360,7 @@ fun <T> DropdownRow(
                         label(o), isSel, optionSubtitle?.invoke(o),
                         Modifier
                             .then(if (isSel) Modifier.focusRequester(selectedFr) else Modifier)
+                            .focusCounter { focusCount += it }
                             .onFocusChanged { if (it.isFocused) FocusMemory.map[scope] = id },
                     ) {
                         onSelect(o)
@@ -353,6 +368,18 @@ fun <T> DropdownRow(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Suma 1 al ganar el foco y resta 1 al perderlo (solo en cambios reales). */
+private fun Modifier.focusCounter(onDelta: (Int) -> Unit): Modifier = composed {
+    val was = remember { booleanArrayOf(false) }
+    val cb by rememberUpdatedState(onDelta)
+    this.onFocusChanged {
+        if (it.isFocused != was[0]) {
+            was[0] = it.isFocused
+            cb(if (it.isFocused) 1 else -1)
         }
     }
 }
