@@ -1,12 +1,9 @@
 ## Novedades
 
-- **Continuar viendo, versión funcional.** Al posarte en una app de streaming del dock aparece lo que dejaste a medias, con miniatura, título, episodio y progreso. Seleccionar una tarjeta abre directo ese contenido.
-  - Android TV / Google TV y Fire TV: se lee la fila "Continuar viendo" del sistema (Watch Next).
-  - Fire TV: además se aprovechan las sugerencias que las apps publican por notificación.
-  - YouTube queda excluido por defecto; cualquier app se activa o excluye desde su menú (mantén OK › Continuar viendo).
-- **Tarjetas rediseñadas:** vidrio más oscuro para leerse sobre fondos claros, texto más grande y foco blanco como en los menús.
-- **Diagnóstico:** Personalizar › Continuar viendo muestra el contenido detectado y de qué app viene.
-
-## Notas
-
-- En Fire TV, Netflix, Prime Video, Disney+, HBO Max y Apple TV envían su "seguir viendo" solo a Amazon, no al sistema; por eso solo aparecen las apps que publican en la fila del sistema (por ejemplo, Nuvio). En Google TV las apps certificadas (Netflix, Prime Video, Disney+…) sí publican ahí.
+- **Continuar viendo más compacto:** tarjetas más pequeñas y texto más fino, para que la sección no robe protagonismo al dock.
+- **Corregido:** la primera tarjeta se veía cortada al enfocarla (por ejemplo, Gossip Girl). Ahora tiene espacio para crecer sin recortarse.
+- **Transiciones nuevas:** la sección sube suavemente al aparecer, baja y se desvanece al ocultarse, y al pasar de una app a otra hace un fundido cruzado en lugar de cambiar de golpe.
+- **Más fluido en Fire TV:**
+  - Mover el foco por el dock ya no vuelve a dibujar todo el inicio; solo se actualiza la sección de Continuar viendo.
+  - Con el dock en vista normal ya no se dibujan las apps ocultas de la cuadrícula, solo la fila que asoma.
+  - La fila que asoma se atenúa sin crear una capa extra fuera de pantalla.

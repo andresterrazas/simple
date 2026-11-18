@@ -2,6 +2,10 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.0.18
+- Continuar viendo más compacto, sin recorte en la tarjeta enfocada y con transiciones suaves al aparecer, ocultarse y cambiar de app.
+- Rendimiento en Fire TV: menos recomposición al mover el foco y la cuadrícula oculta ya no se dibuja.
+
 ## v1.0.17
 - Continuar viendo funcional al posarse en apps de streaming (Watch Next del sistema + sugerencias por notificación), tarjetas rediseñadas, exclusión por app (YouTube por defecto) y diagnóstico de contenido detectado.
 

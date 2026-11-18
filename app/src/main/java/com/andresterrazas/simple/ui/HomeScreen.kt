@@ -45,6 +45,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.graphics.CompositingStrategy
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -171,20 +176,29 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
     fun rfr(key: String) = recRequesters.getOrPut(key) { FocusRequester() }
     val memory2 = remember { arrayOfNulls<String>(1) } // última tarjeta de "Continuar viendo"
     // "Continuar viendo" aparece al posarse en una app de streaming del dock que tenga contenido a medias.
-    var hoverPkg by remember { mutableStateOf<String?>(null) }
-    val shownPkg by produceState<String?>(null, hoverPkg) {
-        if (hoverPkg == null) { value = null; return@produceState }
-        delay(260)
-        value = hoverPkg
+    // Rendimiento: el estado de "hover" vive fuera de la composición del inicio. Mover el foco entre apps
+    // ya no recompone todo el dock y la cuadrícula; solo la sección de Continuar viendo lo lee.
+    val hover = remember { HoverState() }
+    val recsNow by rememberUpdatedState(recs)
+    val prefsNow by rememberUpdatedState(prefs)
+    val dockOpen by rememberUpdatedState(hasFavs && !expandedVisual)
+    LaunchedEffect(hover) {
+        snapshotFlow { hover.hover }.collectLatest { h ->
+            if (h == null) hover.shown = null else { delay(200); hover.shown = h }
+        }
     }
-    val appRecs = remember(recs, shownPkg, prefs.recsHidden, showRecs) {
-        val pkg = shownPkg
-        if (!showRecs || pkg == null || pkg in prefs.recsHidden) emptyList()
-        else recs.filter { Recs.samePackage(it.pkg, pkg) }.take(10)
+    val appRecsState = remember {
+        derivedStateOf {
+            val pkg = hover.shown
+            val p = prefsNow
+            if (!p.showRecs || pkg == null || pkg in p.recsHidden) emptyList()
+            else recsNow.filter { Recs.samePackage(it.pkg, pkg) }.take(10)
+        }
     }
-    val recsShown = appRecs.isNotEmpty() && hasFavs && !expandedVisual
+    val recsShownState = remember { derivedStateOf { appRecsState.value.isNotEmpty() && dockOpen } }
     fun recsTarget(): FocusRequester? {
-        val k = memory2[0]?.takeIf { m -> appRecs.any { it.key == m } } ?: appRecs.firstOrNull()?.key
+        val list = appRecsState.value
+        val k = memory2[0]?.takeIf { m -> list.any { it.key == m } } ?: list.firstOrNull()?.key
         return k?.let { rfr(it) }
     }
 
@@ -324,10 +338,10 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                                     routes = {
                                         if (i == 0) left = FocusRequester.Cancel
                                         if (i == favs.lastIndex) right = FocusRequester.Cancel
-                                        if (!ui.expanded) up = (if (recsShown && shownPkg == e.pkg) recsTarget() else null) ?: headerTarget() ?: FocusRequester.Cancel
+                                        if (!ui.expanded) up = (if (recsShownState.value && hover.shown == e.pkg) recsTarget() else null) ?: headerTarget() ?: FocusRequester.Cancel
                                         if (ui.expanded && rows.isNotEmpty()) down = fr(rows.first()[i.coerceAtMost(rows.first().lastIndex)].pkg)
                                     },
-                                    onFocused = { ui.lastFocused = e.pkg; memory[0] = e.pkg; hoverPkg = e.pkg },
+                                    onFocused = { ui.lastFocused = e.pkg; memory[0] = e.pkg; hover.hover = e.pkg },
                                     onClick = { SystemActions.launchApp(ctx, e.pkg) },
                                     onLongClick = { openMenu(e.pkg) },
                                     onMoveKey = { d -> moveKey(e.pkg, true, d) },
@@ -342,10 +356,11 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
             if (others.isNotEmpty()) {
                 Column(
                     Modifier.width(rowWidth).padding(start = PANEL_PAD, end = PANEL_PAD, top = gridGap, bottom = 48.dp)
-                        .graphicsLayer { alpha = gridAlpha },
+                        .graphicsLayer { alpha = gridAlpha; compositingStrategy = CompositingStrategy.ModulateAlpha },
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    rows.forEachIndexed { r, row ->
+                    // Con el dock en vista normal solo existe la fila que asoma: no se dibujan decenas de apps ocultas.
+                    (if (gridVisible) rows else rows.take(1)).forEachIndexed { r, row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(look.gap)) {
                             row.forEachIndexed { c, e ->
                                 key(e.pkg) {
@@ -378,31 +393,25 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
 
         // Continuar viendo de la app enfocada: tarjetas horizontales sobre el dock, alineadas a su borde izquierdo.
         if (hasFavs) {
-            val cardH = (look.height * 1.05f).coerceAtLeast(76.dp)
-            val cardW = (rowWidth - PANEL_PAD * 2 - 18.dp * 2) / 3
-            val panelH = 46.dp + cardH
-            val label = apps.firstOrNull { it.pkg == shownPkg }?.label.orEmpty()
-            AnimatedVisibility(
-                visible = recsShown,
-                enter = fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 6 },
-                exit = fadeOut(tween(160)),
+            val cardH = (look.height * 0.78f).coerceAtLeast(64.dp)
+            val cardW = (rowWidth - PANEL_PAD * 2) * 0.29f
+            val panelH = 40.dp + cardH
+            RecsOverlay(
+                hover = hover,
+                appRecs = appRecsState,
+                shown = recsShownState,
+                apps = apps,
+                cardW = cardW,
+                cardH = cardH,
                 modifier = Modifier
-                    .padding(top = (dockTop - panelH - 18.dp).coerceAtLeast(headerTop + headerH))
-                    .padding(start = (maxWidth - rowWidth) / 2 + PANEL_PAD)
-                    .width(rowWidth - PANEL_PAD),
-            ) {
-                ContinueRow(
-                    title = if (label.isBlank()) "Continuar viendo" else "Continuar viendo en $label",
-                    recs = appRecs,
-                    cardW = cardW,
-                    cardH = cardH,
-                    enabled = recsShown,
-                    requester = { rfr(it) },
-                    onFocused = { memory2[0] = it },
-                    upTarget = { headerTarget() },
-                    downTarget = { shownPkg?.let { fr(it) } ?: dockTarget() },
-                )
-            }
+                    .padding(top = (dockTop - panelH - 16.dp).coerceAtLeast(headerTop + headerH))
+                    .padding(start = (maxWidth - rowWidth) / 2 + PANEL_PAD - CARD_BLEED)
+                    .width(rowWidth - PANEL_PAD + CARD_BLEED),
+                requester = { rfr(it) },
+                onFocused = { memory2[0] = it },
+                upTarget = { headerTarget() },
+                downTarget = { hover.shown?.let { fr(it) } ?: dockTarget() },
+            )
         }
 
         // El encabezado está fijo arriba; al expandir se desvanece y deja de recibir foco.
@@ -416,7 +425,7 @@ fun HomeScreen(app: SimpleApp, ui: UiState, nav: Nav) {
                     translationY = -(1f - headerAlpha) * 24.dp.toPx()
                 },
             requester = { hfr(it) },
-            onFocused = { memory[1] = it; hoverPkg = null },
+            onFocused = { memory[1] = it; hover.hover = null },
             downTarget = { dockTarget() },
             onCustom = { nav.push(Screen.Settings) },
         )
@@ -645,10 +654,11 @@ private fun ContinueRow(
     val ctx = LocalContext.current
     val apps = (ctx.applicationContext as SimpleApp).repo.apps.collectAsState().value
     Column {
-        BasicText(title, style = ts(17.sp, FontWeight.Bold).copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 8f)), modifier = Modifier.padding(start = 6.dp, bottom = 12.dp))
+        BasicText(title, style = ts(15.sp, FontWeight.Bold).copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), blurRadius = 8f)), modifier = Modifier.padding(start = CARD_BLEED + 4.dp, bottom = 4.dp))
         Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp).padding(end = 60.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            // Margen interno: la tarjeta enfocada crece sin que el borde del desplazamiento la recorte.
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = CARD_BLEED, vertical = 8.dp).padding(end = 60.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             recs.forEachIndexed { i, r ->
                 key(r.key) {
@@ -674,6 +684,64 @@ private fun ContinueRow(
     }
 }
 
+private val CARD_BLEED = 12.dp
+
+class HoverState {
+    var hover by mutableStateOf<String?>(null)
+    var shown by mutableStateOf<String?>(null)
+}
+
+/**
+ * Sección de Continuar viendo. Al cambiar de app el contenido hace un fundido cruzado con un leve
+ * desplazamiento; al aparecer sube suavemente y al ocultarse baja y se desvanece.
+ */
+@Composable
+private fun RecsOverlay(
+    hover: HoverState,
+    appRecs: androidx.compose.runtime.State<List<com.andresterrazas.simple.home.Rec>>,
+    shown: androidx.compose.runtime.State<Boolean>,
+    apps: List<AppEntry>,
+    cardW: Dp,
+    cardH: Dp,
+    modifier: Modifier,
+    requester: (String) -> FocusRequester,
+    onFocused: (String) -> Unit,
+    upTarget: () -> FocusRequester?,
+    downTarget: () -> FocusRequester?,
+) {
+    val target = if (shown.value) hover.shown else null
+    val list = appRecs.value
+    androidx.compose.animation.AnimatedContent(
+        targetState = target,
+        modifier = modifier,
+        contentKey = { it },
+        transitionSpec = {
+            val enter = fadeIn(tween(240, delayMillis = 60, easing = FastOutSlowInEasing)) +
+                slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it / 10 }
+            val exit = fadeOut(tween(140)) + androidx.compose.animation.slideOutVertically(tween(200)) { it / 14 }
+            (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = false))
+        },
+        label = "recs",
+    ) { pkg ->
+        if (pkg == null) {
+            Box(Modifier.height(1.dp))
+        } else {
+            val label = apps.firstOrNull { it.pkg == pkg }?.label.orEmpty()
+            ContinueRow(
+                title = if (label.isBlank()) "Continuar viendo" else "Continuar viendo en $label",
+                recs = list.filter { com.andresterrazas.simple.home.Recs.samePackage(it.pkg, pkg) },
+                cardW = cardW,
+                cardH = cardH,
+                enabled = true,
+                requester = requester,
+                onFocused = onFocused,
+                upTarget = upTarget,
+                downTarget = downTarget,
+            )
+        }
+    }
+}
+
 /**
  * Tarjeta minimalista: miniatura a la izquierda; app, título, episodio y progreso a la derecha.
  * Vidrio más oscuro que el resto para que el texto se lea sobre fondos claros; al enfocarla se
@@ -684,7 +752,7 @@ private fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: Stri
     val ctx = LocalContext.current
     val style = LocalStyle.current
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.05f else 1f, spring(dampingRatio = 0.8f, stiffness = 520f), label = "cardScale")
+    val scale by animateFloatAsState(if (focused) 1.06f else 1f, spring(dampingRatio = 0.82f, stiffness = 600f), label = "cardScale")
     val bg by androidx.compose.animation.animateColorAsState(
         if (focused) style.focusedFill else Color.Black.copy(alpha = if (style.dark) 0.42f else 0.26f), tween(160), label = "cardBg",
     )
@@ -692,8 +760,8 @@ private fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: Stri
     val image by produceState(rec.image ?: com.andresterrazas.simple.home.RecImages.cached(rec.imageUri), rec.key) {
         if (value == null && rec.imageUri != null) value = com.andresterrazas.simple.home.RecImages.load(ctx, rec.imageUri)
     }
-    val shape = RoundedCornerShape(22.dp)
-    val pad = 10.dp
+    val shape = RoundedCornerShape(18.dp)
+    val pad = 8.dp
     val thumbH = height - pad * 2
     val thumbW = thumbH * 16f / 9f
     Row(
@@ -710,20 +778,20 @@ private fun ContinueCard(rec: com.andresterrazas.simple.home.Rec, appLabel: Stri
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(thumbW, thumbH).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.35f))) {
-            image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High) }
+            image?.let { Image(it, rec.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium) }
             if (image == null) {
                 BasicText(rec.title.take(1).uppercase(), style = ts(28.sp, FontWeight.Bold, Color.White.copy(alpha = 0.6f)), modifier = Modifier.align(Alignment.Center))
             }
         }
-        Column(Modifier.padding(start = 16.dp, end = 6.dp).weight(1f), verticalArrangement = Arrangement.Center) {
-            BasicText(appLabel.uppercase(), maxLines = 1, style = ts(11.sp, FontWeight.Bold, fg.copy(alpha = 0.6f)).copy(letterSpacing = 1.2.sp))
-            BasicText(rec.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(19.sp, FontWeight.Bold, fg), modifier = Modifier.padding(top = 3.dp))
+        Column(Modifier.padding(start = 12.dp, end = 6.dp).weight(1f), verticalArrangement = Arrangement.Center) {
+            BasicText(appLabel.uppercase(), maxLines = 1, style = ts(10.sp, FontWeight.Bold, fg.copy(alpha = 0.6f)).copy(letterSpacing = 1.1.sp))
+            BasicText(rec.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(16.sp, FontWeight.Bold, fg), modifier = Modifier.padding(top = 2.dp))
             if (rec.subtitle.isNotBlank()) {
-                BasicText(rec.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(13.sp, FontWeight.Medium, fg.copy(alpha = 0.72f)), modifier = Modifier.padding(top = 2.dp))
+                BasicText(rec.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = ts(12.sp, FontWeight.Medium, fg.copy(alpha = 0.72f)), modifier = Modifier.padding(top = 1.dp))
             }
             rec.progress?.let { p ->
-                Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(4.dp).clip(CircleShape).background(fg.copy(alpha = 0.22f))) {
-                    Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(4.dp).clip(CircleShape).background(fg))
+                Box(Modifier.padding(top = 7.dp).fillMaxWidth().height(3.dp).clip(CircleShape).background(fg.copy(alpha = 0.22f))) {
+                    Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(3.dp).clip(CircleShape).background(fg))
                 }
             }
         }
