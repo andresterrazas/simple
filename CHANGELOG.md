@@ -2,6 +2,16 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.0.20
+- Perfil de arranque, lista de apps en caché y fondo inmediato al abrir.
+- Inicio dentro de simple siempre regresa al dock.
+- Menús con formas y márgenes consistentes.
+- Diagnóstico de fluidez y registro local de cierres inesperados.
+- Código de la interfaz dividido por pantalla.
+
+## v1.0.19
+- Compilación intermedia de la v1.0.20 (sin notas propias).
+
 ## v1.0.18
 - Continuar viendo más compacto, sin recorte en la tarjeta enfocada y con transiciones suaves al aparecer, ocultarse y cambiar de app.
 - Rendimiento en Fire TV: menos recomposición al mover el foco y la cuadrícula oculta ya no se dibuja.
