@@ -3,7 +3,7 @@
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
 ## v1.1.6
-- Corrige: el botón de la tienda no abría la Appstore de Amazon en Fire TV (regresión de la 1.1.4). La Appstore vuelve a abrirse por su entrada normal; la Play Store, por la de leanback.
+- Tienda modular: Fire TV usa solo la Appstore de Amazon (entrada normal, como antes de la 1.1.4) y Android TV solo la Play Store (entrada de leanback). Corrige que el botón no abriera la Appstore en Fire TV.
 
 ## v1.1.5
 - Perfil de rendimiento (Baseline + Startup Profile) generado con recorridos reales en emulador desde Actions (`.github/workflows/profile.yml`, módulo `:baselineprofile`), con optimización del orden del dex. Reemplaza el perfil escrito a mano.

@@ -84,22 +84,23 @@ object SystemActions {
 
     const val PLAY_STORE_PKG = "com.android.vending"
 
-    /** Tiendas en orden de preferencia: la de Amazon en Fire TV, la Play Store en cualquier otra TV. */
-    private fun storePackages(): List<String> =
-        if (com.andresterrazas.simple.home.DefaultHome.isFireTv) listOf(AMAZON_STORE_PKG, PLAY_STORE_PKG)
-        else listOf(PLAY_STORE_PKG, AMAZON_STORE_PKG)
+    private val isFire get() = com.andresterrazas.simple.home.DefaultHome.isFireTv
 
+    /** Cada dispositivo usa su tienda y nada más: la Appstore de Amazon en Fire TV, la Play Store en Android TV. */
     fun openStoreHome(ctx: Context) {
         val pm = ctx.packageManager
-        for (pkg in storePackages()) {
-            val leanback = runCatching { pm.getLeanbackLaunchIntentForPackage(pkg) }.getOrNull()
-            val normal = runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull()
-            // La Play Store de TV se abre por su entrada de leanback. La Appstore de Amazon, por su
-            // entrada normal (como antes de la 1.1.4): la de leanback no la abre en Fire OS.
-            val launch = if (pkg == PLAY_STORE_PKG) leanback ?: normal else normal ?: leanback
-            if (launch != null && tryStart(ctx, launch)) return
+        val launch = if (isFire) {
+            // Como siempre en Fire OS: la entrada normal de la Appstore (la de leanback no la abre).
+            runCatching { pm.getLaunchIntentForPackage(AMAZON_STORE_PKG) }.getOrNull()
+                ?: runCatching { pm.getLeanbackLaunchIntentForPackage(AMAZON_STORE_PKG) }.getOrNull()
+        } else {
+            // La Play Store de TV se abre por su entrada de leanback.
+            runCatching { pm.getLeanbackLaunchIntentForPackage(PLAY_STORE_PKG) }.getOrNull()
+                ?: runCatching { pm.getLaunchIntentForPackage(PLAY_STORE_PKG) }.getOrNull()
         }
-        toast(ctx, "No se encontró la tienda de aplicaciones")
+        if (launch == null || !tryStart(ctx, launch)) {
+            toast(ctx, if (isFire) "No se encontró la Appstore de Amazon" else "No se encontró la Play Store")
+        }
     }
 
     fun openAppInfo(ctx: Context, pkg: String) {
@@ -108,10 +109,15 @@ object SystemActions {
     }
 
     fun openInStore(ctx: Context, pkg: String) {
-        val amzn = Intent(Intent.ACTION_VIEW, Uri.parse("amzn://apps/android?p=$pkg"))
-        val play = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).setPackage(PLAY_STORE_PKG)
-        val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))
-        val order = if (com.andresterrazas.simple.home.DefaultHome.isFireTv) listOf(amzn, market) else listOf(play, market, amzn)
+        val order = if (isFire) {
+            // En Fire OS, market:// también lo atiende la Appstore de Amazon.
+            listOf(
+                Intent(Intent.ACTION_VIEW, Uri.parse("amzn://apps/android?p=$pkg")),
+                Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).setPackage(AMAZON_STORE_PKG),
+            )
+        } else {
+            listOf(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).setPackage(PLAY_STORE_PKG))
+        }
         if (order.none { tryStart(ctx, it) }) toast(ctx, "Esta app no está en la tienda")
     }
 
