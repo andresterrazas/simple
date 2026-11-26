@@ -62,10 +62,6 @@ class MainActivity : ComponentActivity() {
         nav.push(screen)
     }
 
-    companion object {
-        const val EXTRA_OPEN = "simple.open"
-    }
-
     override fun onResume() {
         super.onResume()
         DefaultHome.foreground = true
@@ -102,5 +98,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_FROM_HOME = "from_home"
+        const val EXTRA_OPEN = "simple.open"
     }
 }

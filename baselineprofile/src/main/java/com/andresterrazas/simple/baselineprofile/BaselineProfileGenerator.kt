@@ -2,7 +2,6 @@ package com.andresterrazas.simple.baselineprofile
 
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.filters.LargeTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,7 +11,6 @@ import org.junit.runner.RunWith
  * el inicio y los menús, para que Android lo compile por adelantado al instalar.
  */
 @RunWith(AndroidJUnit4::class)
-@LargeTest
 class BaselineProfileGenerator {
     @get:Rule
     val rule = BaselineProfileRule()
