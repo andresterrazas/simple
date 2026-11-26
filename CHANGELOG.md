@@ -2,7 +2,7 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
-## v1.1.6
+## v1.1.7
 - Tienda modular: Fire TV usa solo la Appstore de Amazon (entrada normal, como antes de la 1.1.4) y Android TV solo la Play Store (entrada de leanback). Corrige que el botón no abriera la Appstore en Fire TV.
 
 ## v1.1.5
