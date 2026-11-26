@@ -132,6 +132,12 @@ fun SettingsMainScreen(app: SimpleApp, nav: Nav) {
         }
 
         SectionLabel("Acerca de")
+        val upd by com.andresterrazas.simple.data.Updater.state.collectAsState()
+        SettingRow(
+            "Actualizaciones", Modifier.restorableFocus(s, "updates"), icon = Icons.Download,
+            value = updateSummary(upd).ifBlank { null },
+            subtitle = "simple ${com.andresterrazas.simple.data.Updater.currentVersion(LocalContext.current)}",
+        ) { nav.push(Screen.Updates) }
         SettingRow("Diagnóstico", Modifier.restorableFocus(s, "diag"), icon = Icons.Activity, subtitle = "Estado del servicio y compatibilidad") { nav.push(Screen.Diagnostics) }
     }
 }

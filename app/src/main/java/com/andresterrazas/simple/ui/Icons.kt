@@ -94,6 +94,7 @@ object Icons {
     val Accessibility = build("a11y", circ(16f, 4f, 1f), "M18 19l1-7-6 1", "M5 8l3-3 5.5 3-2.36 3.5", "M4.24 14.5a5 5 0 0 0 6.88 6", "M13.76 17.5a5 5 0 0 0-6.88-6")
     val Package = build("package", "M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z", "M12 22V12", "M3.29 7L12 12l8.71-5", "M7.5 4.27l9 5.15")
     val QrCode = build("qrcode", rect(3f, 3f, 5f, 5f, 1f), rect(16f, 3f, 5f, 5f, 1f), rect(3f, 16f, 5f, 5f, 1f), "M21 16h-3a2 2 0 0 0-2 2v3", "M21 21v.01", "M12 7v3a2 2 0 0 1-2 2H7", "M3 12h.01", "M12 3h.01", "M12 16v.01", "M16 12h1", "M21 12v.01", "M12 21v-1")
+    val Download = build("download", "M12 15V3", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5")
     val Search = build("search", circ(11f, 11f, 8f), "M21 21l-4.3-4.3")
     val ChevronDown = build("chevdown", "M6 9l6 6 6-6")
     val ChevronUp = build("chevup", "M18 15l-6-6-6 6")

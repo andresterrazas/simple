@@ -174,7 +174,18 @@ internal fun HeaderBar(
                 key(id) {
                     val m = focusMod(id)
                     when (id) {
-                        CONTROL_CUSTOM -> CircleButton(Icons.Sliders, m, size = 42, onClick = onCustom)
+                        CONTROL_CUSTOM -> Box {
+                            CircleButton(Icons.Sliders, m, size = 42, onClick = onCustom)
+                            // Punto discreto cuando hay una versión nueva de simple.
+                            val upd by com.andresterrazas.simple.data.Updater.state.collectAsState()
+                            if (upd is com.andresterrazas.simple.data.Updater.State.Available) {
+                                Box(
+                                    Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp).size(10.dp)
+                                        .clip(CircleShape).background(Color(0xFF19C6C9))
+                                        .border(1.5.dp, Color.White.copy(alpha = 0.9f), CircleShape),
+                                )
+                            }
+                        }
                         CONTROL_SETTINGS -> CircleButton(Icons.Gear, m, size = 42) { SystemActions.openSettings(ctx) }
                         CONTROL_WIFI -> CircleButton(if (connected) Icons.Wifi else Icons.WifiOff, m, size = 42,
                             iconTint = if (connected) null else Color(0xFFFFB4A8)) { SystemActions.openWifi(ctx) }

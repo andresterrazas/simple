@@ -167,6 +167,7 @@ data class Prefs(
     val peekRow: Boolean = true,
     val recStyle: RecStyle = RecStyle.WIDE,
     val recSize: RecSize = RecSize.MEDIUM,
+    val autoUpdateCheck: Boolean = true,
     val showRecs: Boolean = true,
     val recsHidden: Set<String> = DEFAULT_RECS_HIDDEN,
     val weatherStyle: WeatherStyle = WeatherStyle.COMPACT,
@@ -289,6 +290,7 @@ class PrefsStore(context: Context) {
             peekRow = sp.getBoolean("peekRow", d.peekRow),
             recStyle = enumOr(sp.getString("recStyle", null), d.recStyle),
             recSize = enumOr(sp.getString("recSize", null), d.recSize),
+            autoUpdateCheck = sp.getBoolean("autoUpdateCheck", d.autoUpdateCheck),
             showRecs = sp.getBoolean("showRecs", d.showRecs),
             recsHidden = if (sp.contains("recsHidden")) list("recsHidden").toSet() else d.recsHidden,
             weatherStyle = enumOr(sp.getString("weatherStyle", null), d.weatherStyle),
@@ -329,6 +331,7 @@ class PrefsStore(context: Context) {
             .putBoolean("peekRow", p.peekRow)
             .putString("recStyle", p.recStyle.name)
             .putString("recSize", p.recSize.name)
+            .putBoolean("autoUpdateCheck", p.autoUpdateCheck)
             .putBoolean("showRecs", p.showRecs)
             .putString("recsHidden", p.recsHidden.joinToString("|"))
             .putString("weatherStyle", p.weatherStyle.name)

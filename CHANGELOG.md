@@ -2,6 +2,10 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.1.4
+- Actualizaciones desde la app: búsqueda automática (al encender y cada 6 h), novedades, descarga e instalación con PackageInstaller y verificación del APK (paquete y versión). Punto de aviso en el botón de ajustes de simple.
+- Tienda: Play Store fuera de Fire TV, Appstore de Amazon en Fire TV.
+
 ## v1.1.3
 - Nuevo logo como ícono de la app (ícono adaptable, banner de TV en xhdpi y xxxhdpi). La interfaz del launcher no cambia.
 - Logo, encabezado y vista previa social en el repositorio (`.github/assets`).

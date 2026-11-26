@@ -92,6 +92,7 @@ fun SimpleRoot(app: SimpleApp, ui: UiState, nav: Nav) {
                     Screen.Apps -> AppsScreen(app)
                     Screen.System -> SystemScreen()
                     Screen.Diagnostics -> DiagnosticsScreen(app)
+                    Screen.Updates -> UpdatesScreen(app)
                 }
                 }
             }

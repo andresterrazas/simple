@@ -24,6 +24,7 @@ sealed interface Screen {
     data object Apps : Screen
     data object System : Screen
     data object Diagnostics : Screen
+    data object Updates : Screen
 }
 
 class Nav {

@@ -82,10 +82,22 @@ object SystemActions {
 
     fun openAccessibility(ctx: Context) = openSettings(ctx, listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)))
 
+    const val PLAY_STORE_PKG = "com.android.vending"
+
+    /** Tiendas en orden de preferencia: la de Amazon en Fire TV, la Play Store en cualquier otra TV. */
+    private fun storePackages(): List<String> =
+        if (com.andresterrazas.simple.home.DefaultHome.isFireTv) listOf(AMAZON_STORE_PKG, PLAY_STORE_PKG)
+        else listOf(PLAY_STORE_PKG, AMAZON_STORE_PKG)
+
     fun openStoreHome(ctx: Context) {
-        val launch = runCatching { ctx.packageManager.getLaunchIntentForPackage(AMAZON_STORE_PKG) }.getOrNull()
-            ?: runCatching { ctx.packageManager.getLeanbackLaunchIntentForPackage(AMAZON_STORE_PKG) }.getOrNull()
-        if (launch == null || !tryStart(ctx, launch)) toast(ctx, "No se encontró la tienda de aplicaciones")
+        val pm = ctx.packageManager
+        for (pkg in storePackages()) {
+            // En TV la Play Store expone su actividad de leanback; se prueba primero.
+            val launch = runCatching { pm.getLeanbackLaunchIntentForPackage(pkg) }.getOrNull()
+                ?: runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull()
+            if (launch != null && tryStart(ctx, launch)) return
+        }
+        toast(ctx, "No se encontró la tienda de aplicaciones")
     }
 
     fun openAppInfo(ctx: Context, pkg: String) {
@@ -95,8 +107,10 @@ object SystemActions {
 
     fun openInStore(ctx: Context, pkg: String) {
         val amzn = Intent(Intent.ACTION_VIEW, Uri.parse("amzn://apps/android?p=$pkg"))
+        val play = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).setPackage(PLAY_STORE_PKG)
         val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))
-        if (!tryStart(ctx, amzn) && !tryStart(ctx, market)) toast(ctx, "Esta app no está en la tienda")
+        val order = if (com.andresterrazas.simple.home.DefaultHome.isFireTv) listOf(amzn, market) else listOf(play, market, amzn)
+        if (order.none { tryStart(ctx, it) }) toast(ctx, "Esta app no está en la tienda")
     }
 
     fun uninstall(ctx: Context, pkg: String) {

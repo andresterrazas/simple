@@ -47,6 +47,17 @@ class SimpleApp : Application() {
                 runCatching { wallpapers.render(id, blur) }
             }
         }
+        // Actualizaciones: una revisión poco después de arrancar y luego cada 6 horas, si está activada.
+        scope.launch {
+            store.state.map { it.autoUpdateCheck }.distinctUntilChanged().collectLatest { on ->
+                if (!on) return@collectLatest
+                delay(20_000)
+                while (true) {
+                    com.andresterrazas.simple.data.Updater.checkIfDue(this@SimpleApp)
+                    delay(60 * 60_000L)
+                }
+            }
+        }
         // Clima: se actualiza al cambiar la configuración y cada 30 minutos mientras esté visible.
         scope.launch {
             store.state.map { Triple(it.weatherStyle, it.weatherPlace, it.tempUnit) }.distinctUntilChanged().collectLatest { (style, place, unit) ->
