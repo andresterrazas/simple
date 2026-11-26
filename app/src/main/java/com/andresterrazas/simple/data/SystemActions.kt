@@ -92,9 +92,11 @@ object SystemActions {
     fun openStoreHome(ctx: Context) {
         val pm = ctx.packageManager
         for (pkg in storePackages()) {
-            // En TV la Play Store expone su actividad de leanback; se prueba primero.
-            val launch = runCatching { pm.getLeanbackLaunchIntentForPackage(pkg) }.getOrNull()
-                ?: runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull()
+            val leanback = runCatching { pm.getLeanbackLaunchIntentForPackage(pkg) }.getOrNull()
+            val normal = runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull()
+            // La Play Store de TV se abre por su entrada de leanback. La Appstore de Amazon, por su
+            // entrada normal (como antes de la 1.1.4): la de leanback no la abre en Fire OS.
+            val launch = if (pkg == PLAY_STORE_PKG) leanback ?: normal else normal ?: leanback
             if (launch != null && tryStart(ctx, launch)) return
         }
         toast(ctx, "No se encontró la tienda de aplicaciones")
