@@ -81,6 +81,10 @@ jobs:
               jq -r '.benchmarks[] | .name as $n | (.sampledMetrics // {}) | to_entries[] | "| \($n) | \(.key) | \(.value.P50*10|round/10) ms | \(.value.P90*10|round/10) ms |"' "$json"
             } >> "$GITHUB_STEP_SUMMARY"
             cp "$json" benchmark-results.json
+            # Tambien en el registro, para poder leerlos sin descargar nada.
+            echo "== Resultados =="
+            jq -r '.benchmarks[] | .name as $n | .metrics | to_entries[] | "\($n) \(.key) mediana=\(.value.median|floor)ms"' "$json"
+            jq -r '.benchmarks[] | .name as $n | (.sampledMetrics // {}) | to_entries[] | "\($n) \(.key) P50=\(.value.P50*10|round/10)ms P90=\(.value.P90*10|round/10)ms P99=\(.value.P99*10|round/10)ms"' "$json"
           else
             echo "_No se encontraron resultados de la medición._" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -101,7 +105,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A app/src/main/generated/baselineProfiles app/src/main/baseline-prof.txt
+          # El perfil escrito a mano ya quedó marcado como borrado en el paso anterior.
+          git add -A app/src/main/generated/baselineProfiles
           if git diff --cached --quiet; then
             echo "El perfil no cambió."
             exit 0
