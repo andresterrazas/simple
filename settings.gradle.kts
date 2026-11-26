@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "simple"
 include(":app")
+include(":baselineprofile")

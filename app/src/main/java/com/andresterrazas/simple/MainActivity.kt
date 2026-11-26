@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
         }
         com.andresterrazas.simple.diag.Perf.onActivityCreated()
         com.andresterrazas.simple.diag.Perf.onShownFromHome()
+        openFromExtra(intent)
         setContent { SimpleRoot(app, ui, nav) }
         askWatchNextOnce()
     }
@@ -36,6 +37,33 @@ class MainActivity : ComponentActivity() {
         FocusMemory.map.clear()
         ui.reset()
         com.andresterrazas.simple.diag.Perf.onShownFromHome()
+        openFromExtra(intent)
+    }
+
+    /**
+     * Acceso interno para el generador del perfil de rendimiento: abre directamente una pantalla
+     * (los menús solo se manejan con el control, así que el robot no puede llegar tocando).
+     */
+    private fun openFromExtra(intent: Intent?) {
+        val open = intent?.getStringExtra(EXTRA_OPEN) ?: return
+        val app = application as SimpleApp
+        app.store.update { it.copy(setupShown = true) }
+        val screen = when (open) {
+            "settings" -> com.andresterrazas.simple.ui.Screen.Settings
+            "header" -> com.andresterrazas.simple.ui.Screen.Controls
+            "dock" -> com.andresterrazas.simple.ui.Screen.Dock
+            "wallpaper" -> com.andresterrazas.simple.ui.Screen.Wallpaper
+            "recs" -> com.andresterrazas.simple.ui.Screen.RecsSettings
+            "apps" -> com.andresterrazas.simple.ui.Screen.Apps
+            "updates" -> com.andresterrazas.simple.ui.Screen.Updates
+            else -> null
+        } ?: return
+        if (screen != com.andresterrazas.simple.ui.Screen.Settings) nav.push(com.andresterrazas.simple.ui.Screen.Settings)
+        nav.push(screen)
+    }
+
+    companion object {
+        const val EXTRA_OPEN = "simple.open"
     }
 
     override fun onResume() {

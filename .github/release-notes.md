@@ -1,7 +1,5 @@
 ## Novedades
 
-- **Actualizaciones desde simple.** En Configuración › Actualizaciones ves si hay una versión nueva con sus novedades, y la descargas e instalas con un OK, sin pasar por Downloader. simple revisa solo al encender y cada 6 horas; cuando hay algo nuevo, aparece un punto en su botón de ajustes del encabezado. Se puede apagar.
-  - La primera vez el sistema te pide permitir que simple instale apps (en Fire TV: Mi Fire TV › Opciones para desarrolladores › Instalar apps desconocidas).
-  - Antes de instalar, simple comprueba que el archivo sea suyo y de una versión más nueva. Además, el sistema solo acepta un APK con la misma firma.
-  - **Esta versión todavía se instala como siempre.** A partir de aquí, las siguientes ya llegan solas.
-- **La tienda en Google TV.** El botón de la tienda y "Tienda de aplicaciones" en el menú de cada app abren la Play Store fuera del Fire TV. En Fire TV siguen abriendo la Appstore de Amazon.
+- **simple arranca y se mueve más rápido.** Esta versión trae un perfil de rendimiento generado recorriendo simple de verdad: arranque, dock, cuadrícula y todos los menús. Con él, Android compila por adelantado justo el código que usas al instalar la app, en lugar de ir interpretándolo las primeras veces. Además, el código de arranque queda acomodado junto dentro del APK para cargarse de una sola vez.
+  - Importa especialmente en el Fire TV: las apps que no vienen de Google Play no reciben los perfiles que Play distribuye, así que el que trae el propio APK es el único.
+  - El perfil reemplaza al que escribimos a mano en versiones anteriores, que era mucho menos preciso.

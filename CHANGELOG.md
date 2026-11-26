@@ -2,6 +2,10 @@
 
 Cada versión publicada en [Releases](https://github.com/andresterrazas/simple/releases) incluye su sección "Novedades". Este archivo resume el historial completo.
 
+## v1.1.5
+- Perfil de rendimiento (Baseline + Startup Profile) generado con recorridos reales en emulador desde Actions (`.github/workflows/profile.yml`, módulo `:baselineprofile`), con optimización del orden del dex. Reemplaza el perfil escrito a mano.
+- Mediciones de arranque y fluidez con y sin perfil en el resumen del flujo.
+
 ## v1.1.4
 - Actualizaciones desde la app: búsqueda automática (al encender y cada 6 h), novedades, descarga e instalación con PackageInstaller y verificación del APK (paquete y versión). Punto de aviso en el botón de ajustes de simple.
 - Tienda: Play Store fuera de Fire TV, Appstore de Amazon en Fire TV.

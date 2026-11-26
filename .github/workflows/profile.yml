@@ -1,0 +1,114 @@
+name: Perfil de rendimiento
+
+# Genera el perfil de rendimiento (Baseline Profile + Startup Profile) recorriendo simple en un
+# emulador, mide el arranque y la fluidez con y sin perfil, y guarda el perfil en el repo.
+# Se ejecuta a mano (Actions › Perfil de rendimiento › Run workflow) o cuando cambia mucho la interfaz.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar una versión nueva con el perfil generado"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: profile
+  cancel-in-progress: false
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Habilitar aceleración del emulador (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Aceptar licencias del SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Quitar el perfil escrito a mano (el generado lo reemplaza)
+        run: git rm -q --ignore-unmatch app/src/main/baseline-prof.txt
+
+      - name: Generar el perfil
+        run: |
+          ./gradlew :app:generateBaselineProfile \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+            -Pandroid.experimental.testOptions.managedDevices.emulator.showKernelLogging=false \
+            --stacktrace
+
+      - name: Medir arranque y fluidez (sin perfil vs. con perfil)
+        continue-on-error: true
+        run: |
+          ./gradlew :baselineprofile:tvEmulatorBenchmarkReleaseAndroidTest \
+            -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=Macrobenchmark \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+            --stacktrace
+
+      - name: Resumen de resultados
+        if: always()
+        run: |
+          {
+            echo "## Perfil de rendimiento"
+            echo
+            for f in app/src/main/generated/baselineProfiles/*.txt; do
+              [ -f "$f" ] && echo "- \`$(basename "$f")\`: $(wc -l < "$f") reglas"
+            done
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          json=$(find baselineprofile/build -name '*benchmarkData.json' | head -1)
+          if [ -n "$json" ]; then
+            {
+              echo "| Prueba | Métrica | Mediana | P90 |"
+              echo "|---|---|---|---|"
+              jq -r '.benchmarks[] | .name as $n | .metrics | to_entries[] | "| \($n) | \(.key) | \(.value.median|floor) ms | \((.value.runs|sort|.[(length*0.9|floor)])//0|floor) ms |"' "$json"
+              jq -r '.benchmarks[] | .name as $n | (.sampledMetrics // {}) | to_entries[] | "| \($n) | \(.key) | \(.value.P50*10|round/10) ms | \(.value.P90*10|round/10) ms |"' "$json"
+            } >> "$GITHUB_STEP_SUMMARY"
+            cp "$json" benchmark-results.json
+          else
+            echo "_No se encontraron resultados de la medición._" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Guardar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perfil-y-mediciones
+          path: |
+            app/src/main/generated/baselineProfiles/
+            benchmark-results.json
+          if-no-files-found: ignore
+
+      - name: Guardar el perfil en el repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A app/src/main/generated/baselineProfiles app/src/main/baseline-prof.txt
+          if git diff --cached --quiet; then
+            echo "El perfil no cambió."
+            exit 0
+          fi
+          git commit -m "Perfil de rendimiento generado en emulador"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          if [ "${{ inputs.publicar }}" = "true" ]; then
+            gh workflow run build.yml --ref main
+          fi

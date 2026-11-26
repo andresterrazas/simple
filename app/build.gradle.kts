@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("androidx.baselineprofile")
 }
 
 val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
@@ -70,7 +71,17 @@ android {
     }
 }
 
+// Perfil de rendimiento: lo genera el módulo :baselineprofile (en un emulador, desde Actions) y se
+// guarda en src/main/generated/baselineProfiles. Las compilaciones normales solo lo incluyen.
+baselineProfile {
+    automaticGenerationDuringBuild = false
+    saveInSrc = true
+    mergeIntoMain = true
+    dexLayoutOptimization = true
+}
+
 dependencies {
+    baselineProfile(project(":baselineprofile"))
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
